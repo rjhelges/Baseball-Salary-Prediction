@@ -1,4 +1,4 @@
-Player,Pos'n,MLS,2016 
+Player,Pos'n,MLS,Salary 
 "Kershaw, Clayton",lhp-s,7.105,"$34,571,429 "
 "Greinke, Zack",rhp-s,11.057,"$34,000,000 "
 "Price, David",lhp-s,6.164,"$30,000,000 "
@@ -55,7 +55,7 @@ Player,Pos'n,MLS,2016
 "Sanchez, Anibal",rhp-s,9.099,"$16,800,000 "
 "Jones, Adam",cf,8.139,"$16,333,333 "
 "Trout, Mike",cf,4.070,"$16,083,333 "
-"Upton, Melvin Jr. (B.J.)",lf,9.126,"$16,050,000 "
+"Upton, Melvin Jr.",lf,9.126,"$16,050,000 "
 "Granderson, Curtis",rf,10.077,"$16,000,000 "
 "Lackey, John",rhp-s,13.095,"$16,000,000 "
 "Ortiz, David",dh,17.048,"$16,000,000 "
@@ -275,7 +275,6 @@ Player,Pos'n,MLS,2016
 "Alvarez, Henderson",rhp-s,4.051,"$4,250,000 "
 "Cahill, Trevor",rhp,6.098,"$4,250,000 "
 "Iannetta, Chris",c,9.013,"$4,250,000 "
-"Young, Chris",rhp-s,9.162,"$4,250,000 "
 "Duffy, Danny",lhp-s,4.085,"$4,225,000 "
 "Morrison, Logan",1b,5.069,"$4,200,000 "
 "Rondon, Hector",rhp-c,3.000,"$4,200,000 "
@@ -777,7 +776,6 @@ Player,Pos'n,MLS,2016
 "Collins, Tyler",of,0.145,"$510,500 "
 "Leon, Arnold",rhp,0.073,"$510,500 "
 "Wright, Mike",rhp,0.100,"$510,500 "
-"Duffy, Matt",3b,1.059,"$510,200 "
 "Rea, Colin",rhp-s,0.055,"$510,200 "
 "Rua, Ryan",inf,1.008,"$510,120 "
 "Pena, Ariel",rhp,0.031,"$510,100 "

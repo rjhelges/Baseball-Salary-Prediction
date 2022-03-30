@@ -1,4 +1,4 @@
-Player,Pos'n,MLS,2018 
+Player,Pos'n,MLS,Salary, 
 "Kershaw, Clayton",lhp-s,9.105,"$35,571,429 ",,
 "Trout, Mike",cf,6.070,"$34,083,333 ",,
 "Greinke, Zack",rhp-s,13.057,"$34,000,000 ",,
@@ -551,7 +551,7 @@ Player,Pos'n,MLS,2018
 "Contreras, Willson",c,1.108,"$604,500 ",,
 "Rosario, Eddie",lf,2.120,"$602,500 ",,
 "Sano, Miguel",rf,2.095,"$602,500 ",,
-"Florimon Jr, Pedro",ss,2.126,"$600,000 ",,
+"Florimon Jr., Pedro",ss,2.126,"$600,000 ",,
 "Centeno, Juan",c,1.140,"$600,000 ",,
 "Devenski, Chris",rhp,2.000,"$599,200 ",,
 "Bregman, Alex",3b,1.070,"$599,000 ",,

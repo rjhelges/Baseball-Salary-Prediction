@@ -1,4 +1,4 @@
-Player,Pos'n,MLS,2017 
+Player,Pos'n,MLS,Salary 
 "Kershaw, Clayton",lhp-s,8.105,"$35,571,429 "
 "Greinke, Zack",rhp-s,12.057,"$34,000,000 "
 "Price, David",lhp-s,7.164,"$30,000,000 "
@@ -26,7 +26,6 @@ Player,Pos'n,MLS,2017
 "Crawford, Carl",,,"$21,857,143 "
 "Kemp, Matt",lf,10.049,"$21,750,000 "
 "Werth, Jayson",lf,13.102,"$21,571,429 "
-"Reyes, Jose",,,"$21,465,000 "
 "Ellsbury, Jacoby",cf,9.037,"$21,142,857 "
 "Davis, Chris",1b,7.061,"$21,118,782 "
 "Shields, James",rhp-s,10.125,"$21,000,000 "
@@ -62,7 +61,7 @@ Player,Pos'n,MLS,2017
 "Zobrist, Ben",2b-rf,9.134,"$16,500,000 "
 "Fowler, Dexter",cf,7.168,"$16,500,000 "
 "Jones, Adam",cf,9.139,"$16,333,333 "
-"Upton, Melvin Jr.",,,"$16,050,000 "
+"Upton, Melvin Jr.",,10.126,"$16,050,000 "
 "Beltran, Carlos",dh-lf,18.014,"$16,000,000 "
 "Lackey, John",rhp-s,14.095,"$16,000,000 "
 "Gordon, Alex",lf,9.092,"$16,000,000 "
@@ -235,7 +234,6 @@ Player,Pos'n,MLS,2017
 "Gonzalez, Miguel",rhp-s,5.084,"$5,900,000 "
 "Rondon, Hector",rhp,4.000,"$5,800,000 "
 "Rendon, Anthony",3b,3.130,"$5,800,000 "
-"Young, Chris",rhp,10.162,"$5,750,000 "
 "Rodriguez, Sean",2b-3b,7.133,"$5,750,000 "
 "Chavez, Jesse",rhp-s,6.108,"$5,750,000 "
 "Koehler, Tom",rhp-s,4.016,"$5,750,000 "

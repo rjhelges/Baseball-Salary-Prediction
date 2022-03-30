@@ -1,4 +1,4 @@
-Player,Pos'n,MLS,2015
+Player,Pos'n,MLS,Salary
 "Kershaw, Clayton",lhp-s,6.105,"$32,571,429 "
 "Verlander, Justin",rhp-s,9.002,"$28,000,000 "
 "Hamilton, Josh",lf,8.000,"$25,400,000 "
@@ -51,7 +51,7 @@ Player,Pos'n,MLS,2015
 "Danks, John",lhp-s,8.000,"$15,750,000 "
 "Andrus, Elvis",ss,6.000,"$15,250,000 "
 "Molina, Yadier",c,10.123,"$15,200,000 "
-"Upton, Melvin Jr. (B.J.)",cf,8.126,"$15,050,000 "
+"Upton, Melvin Jr.",cf,8.126,"$15,050,000 "
 "Swisher, Nick",1b,10.031,"$15,000,000 "
 "Peralta, Jhonny",ss,10.118,"$15,000,000 "
 "Utley, Chase",2b,11.027,"$15,000,000 "
@@ -561,7 +561,6 @@ Player,Pos'n,MLS,2015
 "Carlyle, Buddy",rhp,4.002,"$725,000 "
 "Wilson, Bobby",c,3.090,"$700,000 "
 "Grandal, Yasmani",c,2.115,"$693,000 "
-"Young, Chris",rhp-s,8.162,"$675,000 "
 "Jones, Nate",rhp-c,3.000,"$660,000 "
 "Fernandez, Jose",rhp-s,2.000,"$651,000 "
 "Cordier, Erik",rhp,0.027,"$650,000 "

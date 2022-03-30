@@ -1,4 +1,4 @@
-Player,Pos,MLS,2012 Salary
+Player,Pos,MLS,Salary
 "Rodriguez, Alex",3b,17.011,"$30,000,000 "
 "Wells, Vernon",cf,10.113,"$24,642,857 "
 "Santana, Johan",lhp-s,11.122,"$24,000,000 "
@@ -136,7 +136,7 @@ Player,Pos,MLS,2012 Salary
 "Marmol, Carlos",rhp,5.084,"$7,000,000 "
 "Molina, Yadier",c,7.123,"$7,000,000 "
 "Nathan, Joe",rhp,10.120,"$7,000,000 "
-"Upton, B.J.",cf,5.126,"$7,000,000 "
+"Upton, Melvin",cf,5.126,"$7,000,000 "
 "Willingham, Josh",lf-rf,6.123,"$7,000,000 "
 "Upton, Justin",rf,4.060,"$6,958,000 "
 "Bourn, Michael",cf,5.028,"$6,845,000 "
@@ -665,7 +665,7 @@ Player,Pos,MLS,2012 Salary
 "Schlereth, Daniel",lhp,1.111,"$490,000 "
 "Arencibia, J.P.",c,1.059,"$489,600 "
 "Hellickson, Jeremy",rhp,1.045,"$489,500 "
-"Teagarden,Taylor",c,2.020,"$489,500 "
+"Teagarden, Taylor",c,2.020,"$489,500 "
 "Fuld, Sam",of,1.140,"$489,400 "
 "Frieri, Ernesto",rhp,1.101,"$489,100 "
 "Saunders, Michael",of,1.138,"$489,100 "
