@@ -42,8 +42,10 @@ salaries_2012 <- salaries_2012 %>%
   mutate(Last = trimws(str_replace(Last, pattern = c(" Jr."), "")),
          First = trimws(First),
          Salary = parse_number(Salary),
-         Season = 2012) %>%
+         Season = 2012,
+         Pos = toupper(Pos)) %>%
   # separate(Last, c("Last", "Suffix"), " ", extra = "merge") %>%
+  filter(!grepl("RHP|LHP", Pos)) %>%
   select(c(First, Last, MLS, Salary, Season))
 
 batters_12 <- batters_12 %>%
@@ -60,8 +62,10 @@ salaries_2013 <- salaries_2013 %>%
   mutate(Last = trimws(str_replace(Last, pattern = c(" Jr."), "")),
          First = trimws(First),
          Salary = parse_number(Salary),
-         Season = 2013) %>%
+         Season = 2013,
+         Pos = toupper(Pos)) %>%
   # separate(Last, c("Last", "Suffix"), " ", extra = "merge") %>%
+  filter(!grepl("RHP|LHP", Pos)) %>%
   select(c(First, Last, MLS, Salary, Season))
 
 batters_13 <- batters_13 %>%
@@ -78,8 +82,10 @@ salaries_2014 <- salaries_2014 %>%
   mutate(Last = trimws(str_replace(Last, pattern = c(" Jr."), "")),
          First = trimws(First),
          Salary = parse_number(Salary),
-         Season = 2014) %>%
+         Season = 2014,
+         Pos = toupper(Pos)) %>%
   # separate(Last, c("Last", "Suffix"), " ", extra = "merge") %>%
+  filter(!grepl("RHP|LHP", Pos)) %>%
   select(c(First, Last, MLS, Salary, Season))
 
 batters_14 <- batters_14 %>%
@@ -96,8 +102,10 @@ salaries_2015 <- salaries_2015 %>%
   mutate(Last = trimws(str_replace(Last, pattern = c(" Jr."), "")),
          First = trimws(First),
          Salary = parse_number(Salary),
-         Season = 2015) %>%
+         Season = 2015,
+         Pos.n = toupper(Pos.n)) %>%
   # separate(Last, c("Last", "Suffix"), " ", extra = "merge") %>%
+  filter(!grepl("RHP|LHP", Pos.n)) %>%
   select(c(First, Last, MLS, Salary, Season))
 
 batters_15 <- batters_15 %>%
@@ -114,8 +122,10 @@ salaries_2016 <- salaries_2016 %>%
   mutate(Last = trimws(str_replace(Last, pattern = c(" Jr."), "")),
          First = trimws(First),
          Salary = parse_number(Salary),
-         Season = 2016) %>%
+         Season = 2016,
+         Pos.n = toupper(Pos.n)) %>%
   # separate(Last, c("Last", "Suffix"), " ", extra = "merge") %>%
+  filter(!grepl("RHP|LHP", Pos.n)) %>%
   select(c(First, Last, MLS, Salary, Season))
 
 batters_16 <- batters_16 %>%
@@ -132,8 +142,10 @@ salaries_2017 <- salaries_2017 %>%
   mutate(Last = trimws(str_replace(Last, pattern = c(" Jr."), "")),
          First = trimws(First),
          Salary = parse_number(Salary),
-         Season = 2017) %>%
+         Season = 2017,
+         Pos.n = toupper(Pos.n)) %>%
   # separate(Last, c("Last", "Suffix"), " ", extra = "merge") %>%
+  filter(!grepl("RHP|LHP", Pos.n)) %>%
   select(c(First, Last, MLS, Salary, Season))
 
 batters_17 <- batters_17 %>%
@@ -150,8 +162,10 @@ salaries_2018 <- salaries_2018 %>%
   mutate(Last = trimws(str_replace(Last, pattern = c(" Jr."), "")),
          First = trimws(First),
          Salary = parse_number(Salary),
-         Season = 2018) %>%
+         Season = 2018,
+         Pos.n = toupper(Pos.n)) %>%
   # separate(Last, c("Last", "Suffix"), " ", extra = "merge") %>%
+  filter(!grepl("RHP|LHP", Pos.n)) %>%
   select(c(First, Last, MLS, Salary, Season))
 
 batters_18 <- batters_18 %>%
@@ -168,8 +182,10 @@ salaries_2019 <- salaries_2019 %>%
   mutate(Last = trimws(str_replace(Last, pattern = c(" Jr."), "")),
          First = trimws(First),
          Salary = parse_number(Salary),
-         Season = 2019) %>%
+         Season = 2019,
+         Pos.n = toupper(Pos.n)) %>%
   # separate(Last, c("Last", "Suffix"), " ", extra = "merge") %>%
+  filter(!grepl("RHP|LHP", Pos.n)) %>%
   select(c(First, Last, MLS, Salary, Season))
 
 batters_19 <- batters_19 %>%
@@ -186,8 +202,10 @@ salaries_2020 <- salaries_2020 %>%
   mutate(Last = trimws(str_replace(Last, pattern = c(" Jr."), "")),
          First = trimws(First),
          Salary = parse_number(Salary),
-         Season = 2020) %>%
+         Season = 2020,
+         Pos.n = toupper(Pos.n)) %>%
   # separate(Last, c("Last", "Suffix"), " ", extra = "merge") %>%
+  filter(!grepl("RHP|LHP", Pos.n)) %>%
   select(c(First, Last, Salary, Season))
 
 
@@ -298,8 +316,12 @@ full_batters_2014 <- full_batters_2014 %>%
 batter_dta <- bind_rows(full_batters_2019, full_batters_2018, full_batters_2017, full_batters_2016, full_batters_2015, full_batters_2014)
 
 # Remove some anomalous data
-batter_dta <- batter_dta %>% filter(!(First_C == 'Will' & Last_C == 'Smith' & Salary_Y == 13000000))
 batter_dta <- batter_dta %>% filter(!(Team_C == 'CLE' & Last_C == 'Robertson'))
 
-ggplot(batter_dta, aes(Salary_Y)) + geom_histogram()
+batter_dta <- batter_dta %>%
+  mutate(Player = paste(Season_C, First_C, Last_C, sep="_")) %>%
+  select(-c(Season_C, First_C, Last_C, Team_C, playerid, Season_P1, Team_P1, Age_P1, MLS_P1, Season_P2, Team_P2, Age_P2, MLS_P2)) %>%
+  relocate(Player)
+
+save(list = 'batter_dta', file = 'data/batter_dta.rda')
 
