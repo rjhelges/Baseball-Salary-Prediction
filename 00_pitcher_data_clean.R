@@ -323,4 +323,6 @@ pitcher_dta <- pitcher_dta %>%
   mutate(Player = paste(Season_C, First_C, Last_C, sep="_")) %>%
   select(-c(Season_C, First_C, Last_C, Team_C, playerid, Season_P1, Team_P1, Age_P1, MLS_P1, Season_P2, Team_P2, Age_P2, MLS_P2)) %>%
   relocate(Player)
+
+save(list = 'pitcher_dta', file = 'data/pitcher_dta.rda')
   
