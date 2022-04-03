@@ -18,6 +18,8 @@ batter_dta <- batter_dta %>%
 
 batter <- as.tibble(batter_dta)
 
+multi_metric <- metric_set(rmse, rsq, mae, mape)
+
 corrplot(cor(batter[,c(2:64)]), type = "upper")
 
 # corr_cols <- c('Salary_Y', 'Age_C', 'PA_C', 'HR_C', 'R_C', 'RBI_C', 'WAR_C', 'MLS_C', 'Salary_C',
@@ -59,10 +61,11 @@ reg_res <-
   reg_wf %>%
   tune_grid(
     resamples = folds,
-    grid = reg_grid
+    grid = reg_grid,
+    metrics = multi_metric
   )
 
-best_reg <- reg_res %>% select_best("rmse")
+best_reg <- reg_res %>% select_best("mape")
 
 final_reg <- reg_wf %>%
   finalize_workflow(best_reg) %>%
@@ -77,39 +80,41 @@ reg_coefs <- final_reg %>%
 final_fit_reg <- final_reg %>%
   last_fit(data_split)
 
-reg_preds <- final_fit_reg$.predictions
+save(list = 'final_fit_reg', file = 'data/full_reg_model.rda')
 
-rmse(test_data, Salary_Y, reg_preds[[1]]$.pred)
-rsq(test_data, Salary_Y, reg_preds[[1]]$.pred)
-mean(abs((reg_preds[[1]]$.pred - test_data$Salary_Y)) / test_data$Salary_Y)
+# reg_preds <- final_fit_reg$.predictions
+# 
+# rmse(test_data, Salary_Y, reg_preds[[1]]$.pred)
+# rsq(test_data, Salary_Y, reg_preds[[1]]$.pred)
+# mean(abs((reg_preds[[1]]$.pred - test_data$Salary_Y)) / test_data$Salary_Y)
 
 
-reg_pred_table <- test_data %>%
-  mutate(Salary_Pred = reg_preds[[1]]$.pred,
-         Per_error = (reg_preds[[1]]$.pred - Salary_Y) / Salary_Y) %>%
-  select(c(Player, MLS_C, Salary_Y, Salary_Pred, Per_error))
-
-ggplot(reg_pred_table, aes(MLS_C, Per_error)) + 
-  geom_point()
-
-ggplot(reg_pred_table, aes(Salary_Y, Per_error)) + 
-  geom_point(aes(color = MLS_C))
-
-ggplot(reg_pred_table, aes(Salary_Y, Salary_Pred)) + 
-  geom_point() +
-  geom_point(aes(Salary_Y, Salary_Y), color = 'red')
-
-rmse(test_data, Salary_Y, Salary_C)
-rsq(test_data, Salary_Y, Salary_C)
-mean(abs((test_data$Salary_C - test_data$Salary_Y)) / test_data$Salary_Y)
-mae(test_data, Salary_Y, Salary_C)
-
-baseline_results <- c("Baseline", rmse(test_data, Salary_Y, Salary_C)$.estimate, rsq(test_data, Salary_Y, Salary_C)$.estimate,
-                      mae(test_data, Salary_Y, Salary_C)$.estimate, mean(abs((test_data$Salary_C - test_data$Salary_Y)) / test_data$Salary_Y))
-
-full_reg_results <- c("Full Reg", rmse(test_data, Salary_Y, reg_preds[[1]]$.pred)$.estimate, rsq(test_data, Salary_Y, reg_preds[[1]]$.pred)$.estimate,
-                      mae(test_data, Salary_Y, reg_preds[[1]]$.pred)$.estimate, 
-                      mean(abs((reg_preds[[1]]$.pred - test_data$Salary_Y)) / test_data$Salary_Y))
+# reg_pred_table <- test_data %>%
+#   mutate(Salary_Pred = reg_preds[[1]]$.pred,
+#          Per_error = (reg_preds[[1]]$.pred - Salary_Y) / Salary_Y) %>%
+#   select(c(Player, MLS_C, Salary_Y, Salary_Pred, Per_error))
+# 
+# ggplot(reg_pred_table, aes(MLS_C, Per_error)) + 
+#   geom_point()
+# 
+# ggplot(reg_pred_table, aes(Salary_Y, Per_error)) + 
+#   geom_point(aes(color = MLS_C))
+# 
+# ggplot(reg_pred_table, aes(Salary_Y, Salary_Pred)) + 
+#   geom_point() +
+#   geom_point(aes(Salary_Y, Salary_Y), color = 'red')
+# 
+# rmse(test_data, Salary_Y, Salary_C)
+# rsq(test_data, Salary_Y, Salary_C)
+# mean(abs((test_data$Salary_C - test_data$Salary_Y)) / test_data$Salary_Y)
+# mae(test_data, Salary_Y, Salary_C)
+# 
+# baseline_results <- c("Baseline", rmse(test_data, Salary_Y, Salary_C)$.estimate, rsq(test_data, Salary_Y, Salary_C)$.estimate,
+#                       mae(test_data, Salary_Y, Salary_C)$.estimate, mean(abs((test_data$Salary_C - test_data$Salary_Y)) / test_data$Salary_Y))
+# 
+# full_reg_results <- c("Full Reg", rmse(test_data, Salary_Y, reg_preds[[1]]$.pred)$.estimate, rsq(test_data, Salary_Y, reg_preds[[1]]$.pred)$.estimate,
+#                       mae(test_data, Salary_Y, reg_preds[[1]]$.pred)$.estimate, 
+#                       mean(abs((reg_preds[[1]]$.pred - test_data$Salary_Y)) / test_data$Salary_Y))
 
 
 ## ---------------------------- Boost -------------------------------------- ##
@@ -143,47 +148,50 @@ boost_wf <- workflow() %>%
 boost_res <- boost_wf %>%
   tune_grid(
     resamples = folds,
-    grid = boost_grid
+    grid = boost_grid,
+    metrics = multi_metric
   )
 
-best_boost <- boost_res %>% select_best("rmse")
+best_boost <- boost_res %>% select_best("mape")
 
 final_boost <- boost_wf %>%
   finalize_workflow(best_boost) %>%
   fit(train_data)
 
-boost_preds <- predict(final_boost, test_data)
+save(list = 'final_boost', file = 'data/full_boost_model.rda')
 
-rmse(test_data, Salary_Y, boost_preds$.pred)
-rsq(test_data, Salary_Y, boost_preds$.pred)
-mean(abs((boost_preds$.pred - test_data$Salary_Y)) / test_data$Salary_Y)
-
-boost_pred_table <- test_data %>%
-  mutate(Salary_Pred = boost_preds$.pred,
-         Salary_diff = boost_preds$.pred - Salary_Y,
-         Per_error = (boost_preds$.pred - Salary_Y) / Salary_Y) %>%
-  select(c(Player, MLS_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
-
-ggplot(boost_pred_table, aes(MLS_C, Per_error)) + 
-  geom_point()
-
-ggplot(boost_pred_table, aes(MLS_C, Salary_diff)) + 
-  geom_point()
-
-ggplot(boost_pred_table, aes(Salary_Y, Per_error)) + 
-  geom_point(aes(color = MLS_C))
-
-ggplot(boost_pred_table, aes(Salary_Y, Salary_Pred)) + 
-  geom_point() +
-  geom_point(aes(Salary_Y, Salary_Y), color = 'red')
-
-ggplot(test_data, aes(Salary_Y, Salary_C)) + 
-  geom_point() +
-  geom_point(aes(Salary_Y, Salary_Y), color = 'red')
-
-full_boost_results <- c("Full Boost", rmse(test_data, Salary_Y, boost_preds$.pred)$.estimate, rsq(test_data, Salary_Y, boost_preds$.pred)$.estimate,
-                      mae(test_data, Salary_Y, boost_preds$.pred)$.estimate, 
-                      mean(abs((boost_preds$.pred - test_data$Salary_Y)) / test_data$Salary_Y))
+# boost_preds <- predict(final_boost, test_data)
+# 
+# rmse(test_data, Salary_Y, boost_preds$.pred)
+# rsq(test_data, Salary_Y, boost_preds$.pred)
+# mean(abs((boost_preds$.pred - test_data$Salary_Y)) / test_data$Salary_Y)
+# 
+# boost_pred_table <- test_data %>%
+#   mutate(Salary_Pred = boost_preds$.pred,
+#          Salary_diff = boost_preds$.pred - Salary_Y,
+#          Per_error = (boost_preds$.pred - Salary_Y) / Salary_Y) %>%
+#   select(c(Player, MLS_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
+# 
+# ggplot(boost_pred_table, aes(MLS_C, Per_error)) + 
+#   geom_point()
+# 
+# ggplot(boost_pred_table, aes(MLS_C, Salary_diff)) + 
+#   geom_point()
+# 
+# ggplot(boost_pred_table, aes(Salary_Y, Per_error)) + 
+#   geom_point(aes(color = MLS_C))
+# 
+# ggplot(boost_pred_table, aes(Salary_Y, Salary_Pred)) + 
+#   geom_point() +
+#   geom_point(aes(Salary_Y, Salary_Y), color = 'red')
+# 
+# ggplot(test_data, aes(Salary_Y, Salary_C)) + 
+#   geom_point() +
+#   geom_point(aes(Salary_Y, Salary_Y), color = 'red')
+# 
+# full_boost_results <- c("Full Boost", rmse(test_data, Salary_Y, boost_preds$.pred)$.estimate, rsq(test_data, Salary_Y, boost_preds$.pred)$.estimate,
+#                       mae(test_data, Salary_Y, boost_preds$.pred)$.estimate, 
+#                       mean(abs((boost_preds$.pred - test_data$Salary_Y)) / test_data$Salary_Y))
 
 ## ------------------------------ RF --------------------------------------- ##
 
@@ -210,52 +218,55 @@ rf_wf <- workflow() %>%
 rf_res <- rf_wf %>%
   tune_grid(
     resamples = folds,
-    grid = rf_grid
+    grid = rf_grid,
+    metrics = multi_metric
   )
 
-best_rf <- rf_res %>% select_best("rmse")
+best_rf <- rf_res %>% select_best("mape")
 
 final_rf <- rf_wf %>%
   finalize_workflow(best_rf) %>%
   fit(train_data)
 
-rf_preds <- predict(final_rf, test_data)
+save(list = 'final_rf', file = 'data/full_rf_model.rda')
 
-rmse(test_data, Salary_Y, rf_preds$.pred)
-rsq(test_data, Salary_Y, rf_preds$.pred)
-mean((rf_preds$.pred - test_data$Salary_Y) / test_data$Salary_Y)
-
-rf_pred_table <- test_data %>%
-  mutate(Salary_Pred = rf_preds$.pred,
-         Salary_diff = rf_preds$.pred - Salary_Y,
-         Per_error = (rf_preds$.pred - Salary_Y) / Salary_Y) %>%
-  select(c(Player, MLS_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
-
-ggplot(rf_pred_table, aes(MLS_C, Per_error)) + 
-  geom_point()
-
-ggplot(rf_pred_table, aes(MLS_C, Salary_diff)) + 
-  geom_point()
-
-ggplot(rf_pred_table, aes(Salary_Y, Per_error)) + 
-  geom_point(aes(color = MLS_C))
-
-ggplot(rf_pred_table, aes(Salary_Y, Salary_Pred)) + 
-  geom_point() +
-  geom_point(aes(Salary_Y, Salary_Y), color = 'red')
-
-sd(rf_preds$.pred - test_data$Salary_Y)
-sd(boost_preds$.pred - test_data$Salary_Y)
-sd(reg_preds[[1]]$.pred - test_data$Salary_Y)
-
-ggplot(rf_pred_table, aes(Per_error)) + geom_histogram()
-ggplot(reg_pred_table, aes(Per_error)) + geom_histogram()
-
-full_rf_results <- c("Full RF", rmse(test_data, Salary_Y, rf_preds$.pred)$.estimate, rsq(test_data, Salary_Y, rf_preds$.pred)$.estimate,
-                        mae(test_data, Salary_Y, rf_preds$.pred)$.estimate, 
-                        mean(abs((rf_preds$.pred - test_data$Salary_Y)) / test_data$Salary_Y))
-
-results_table <- rbind(baseline_results, full_reg_results, full_boost_results, full_rf_results)
+# rf_preds <- predict(final_rf, test_data)
+# 
+# rmse(test_data, Salary_Y, rf_preds$.pred)
+# rsq(test_data, Salary_Y, rf_preds$.pred)
+# mean((rf_preds$.pred - test_data$Salary_Y) / test_data$Salary_Y)
+# 
+# rf_pred_table <- test_data %>%
+#   mutate(Salary_Pred = rf_preds$.pred,
+#          Salary_diff = rf_preds$.pred - Salary_Y,
+#          Per_error = (rf_preds$.pred - Salary_Y) / Salary_Y) %>%
+#   select(c(Player, MLS_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
+# 
+# ggplot(rf_pred_table, aes(MLS_C, Per_error)) + 
+#   geom_point()
+# 
+# ggplot(rf_pred_table, aes(MLS_C, Salary_diff)) + 
+#   geom_point()
+# 
+# ggplot(rf_pred_table, aes(Salary_Y, Per_error)) + 
+#   geom_point(aes(color = MLS_C))
+# 
+# ggplot(rf_pred_table, aes(Salary_Y, Salary_Pred)) + 
+#   geom_point() +
+#   geom_point(aes(Salary_Y, Salary_Y), color = 'red')
+# 
+# sd(rf_preds$.pred - test_data$Salary_Y)
+# sd(boost_preds$.pred - test_data$Salary_Y)
+# sd(reg_preds[[1]]$.pred - test_data$Salary_Y)
+# 
+# ggplot(rf_pred_table, aes(Per_error)) + geom_histogram()
+# ggplot(reg_pred_table, aes(Per_error)) + geom_histogram()
+# 
+# full_rf_results <- c("Full RF", rmse(test_data, Salary_Y, rf_preds$.pred)$.estimate, rsq(test_data, Salary_Y, rf_preds$.pred)$.estimate,
+#                         mae(test_data, Salary_Y, rf_preds$.pred)$.estimate, 
+#                         mean(abs((rf_preds$.pred - test_data$Salary_Y)) / test_data$Salary_Y))
+# 
+# results_table <- rbind(baseline_results, full_reg_results, full_boost_results, full_rf_results)
 
 ### ------------------------------------------------------------------###
 ##            Split model by MLS                                       ##
@@ -277,8 +288,6 @@ batter_dta_c <- batter_dta %>%
 
 batter_c <- as.tibble(batter_dta_c)
 
-multi_metric <- metric_set(rmse, rsq, mae, mape)
-
 set.seed(333)
 
 data_split_c <- initial_split(batter_c, prop = .75)
@@ -291,8 +300,7 @@ batter_rec_stand_c <-
   update_role(Player, new_role = "ID") %>%
   step_center(all_predictors()) %>%
   step_scale(all_predictors()) %>%
-  step_interact(terms = ~ Salary_C:c(MLS_C, WAR_C, Age_C, 
-                                     Salary_change_P1, Salary_change_P2))
+  step_interact(terms = ~ Salary_C:c(WAR_C, Age_C, Salary_change_P1, Salary_change_P2))
 
 reg_mod_c <-
   linear_reg(penalty = tune(), mixture = tune()) %>%
@@ -333,42 +341,46 @@ reg_coefs_c <- final_reg_c %>%
 final_fit_reg_c <- final_reg_c %>%
   last_fit(data_split_c)
 
-reg_preds_c <- final_fit_reg_c$.predictions
+save(list = 'final_fit_reg_c', file = 'data/tuned_reg_model.rda')
 
-rmse(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
-rsq(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
-mae(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
-mape(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
-rpd(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
-rpiq(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
-
-
-reg_pred_table_c <- test_data_c %>%
-  mutate(Salary_Pred = reg_preds_c[[1]]$.pred,
-         Per_error = (reg_preds_c[[1]]$.pred - Salary_Y) / Salary_Y) %>%
-  select(c(Player, MLS_C, Salary_Y, Salary_Pred, Per_error))
-
-ggplot(reg_pred_table_c, aes(MLS_C, Per_error)) + 
-  geom_point()
-
-ggplot(reg_pred_table_c, aes(Salary_Y, Per_error)) + 
-  geom_point(aes(color = MLS_C))
-
-ggplot(reg_pred_table_c, aes(Salary_Y, Salary_Pred)) + 
-  geom_point() +
-  geom_point(aes(Salary_Y, Salary_Y), color = 'red')
-
-c_reg_results <- c("Curr Reg", rmse(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)$.estimate, rsq(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)$.estimate,
-                      mae(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)$.estimate, 
-                      mean(abs((reg_preds_c[[1]]$.pred - test_data_c$Salary_Y)) / test_data_c$Salary_Y))
+# reg_preds_c <- final_fit_reg_c$.predictions
+# 
+# rmse(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
+# rsq(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
+# mae(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
+# mape(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
+# 
+# rmse(test_data_c, Salary_Y, Salary_C)
+# rsq(test_data_c, Salary_Y, Salary_C)
+# mae(test_data_c, Salary_Y, Salary_C)
+# mape(test_data_c, Salary_Y, Salary_C)
+# 
+# 
+# reg_pred_table_c <- test_data_c %>%
+#   mutate(Salary_Pred = reg_preds_c[[1]]$.pred,
+#          Per_error = (reg_preds_c[[1]]$.pred - Salary_Y) / Salary_Y) %>%
+#   select(c(Player, MLS_C, Salary_Y, Salary_Pred, Per_error))
+# 
+# ggplot(reg_pred_table_c, aes(MLS_C, Per_error)) + 
+#   geom_point()
+# 
+# ggplot(reg_pred_table_c, aes(Salary_Y, Per_error)) + 
+#   geom_point(aes(color = MLS_C))
+# 
+# ggplot(reg_pred_table_c, aes(Salary_Y, Salary_Pred)) + 
+#   geom_point() +
+#   geom_point(aes(Salary_Y, Salary_Y), color = 'red')
+# 
+# c_reg_results <- c("Curr Reg", rmse(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)$.estimate, rsq(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)$.estimate,
+#                       mae(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)$.estimate, 
+#                       mean(abs((reg_preds_c[[1]]$.pred - test_data_c$Salary_Y)) / test_data_c$Salary_Y))
 
 ## ---------------------------- Boost Current ----------------------------- ##
 
 batter_rec_c <- 
   recipe(Salary_Y ~ ., data = train_data_c) %>%
   update_role(Player, new_role = "ID") %>%
-  step_interact(terms = ~ Salary_C:c(MLS_C, WAR_C, Age_C, 
-                                     Salary_change_P1, Salary_change_P2))
+  step_interact(terms = ~ Salary_C:c(WAR_C, Age_C, Salary_change_P1, Salary_change_P2))
 
 
 boost_grid <- grid_regular(tree_depth(),
@@ -395,34 +407,39 @@ final_boost_c <- boost_wf_c %>%
   finalize_workflow(best_boost_c) %>%
   fit(train_data_c)
 
-boost_preds_c <- predict(final_boost_c, test_data_c)
+save(list = 'final_boost_c', file = 'data/tuned_boost_model.rda')
 
-rmse(test_data_c, Salary_Y, boost_preds_c$.pred)
-rsq(test_data_c, Salary_Y, boost_preds_c$.pred)
-mean(abs((boost_preds_c$.pred - test_data_c$Salary_Y)) / test_data_c$Salary_Y)
-
-boost_pred_table_c <- test_data_c %>%
-  mutate(Salary_Pred = boost_preds_c$.pred,
-         Salary_diff = boost_preds_c$.pred - Salary_Y,
-         Per_error = (boost_preds_c$.pred - Salary_Y) / Salary_Y) %>%
-  select(c(Player, MLS_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
-
-ggplot(boost_pred_table_c, aes(MLS_C, Per_error)) + 
-  geom_point()
-
-ggplot(boost_pred_table_c, aes(MLS_C, Salary_diff)) + 
-  geom_point()
-
-ggplot(boost_pred_table_c, aes(Salary_Y, Per_error)) + 
-  geom_point(aes(color = MLS_C))
-
-ggplot(boost_pred_table_c, aes(Salary_Y, Salary_Pred)) + 
-  geom_point() +
-  geom_point(aes(Salary_Y, Salary_Y), color = 'red')
-
-c_boost_results <- c("Curr Boost", rmse(test_data_c, Salary_Y, boost_preds_c$.pred)$.estimate, rsq(test_data_c, Salary_Y, boost_preds_c$.pred)$.estimate,
-                        mae(test_data_c, Salary_Y, boost_preds_c$.pred)$.estimate, 
-                        mean(abs((boost_preds_c$.pred - test_data_c$Salary_Y)) / test_data_c$Salary_Y))
+# boost_preds_c <- predict(final_boost_c, test_data_c)
+# 
+# rmse(test_data_c, Salary_Y, boost_preds_c$.pred)
+# rsq(test_data_c, Salary_Y, boost_preds_c$.pred)
+# mae(test_data_c, Salary_Y, boost_preds_c$.pred)
+# mape(test_data_c, Salary_Y, boost_preds_c$.pred)
+# rpd(test_data_c, Salary_Y, boost_preds_c$.pred)
+# rpiq(test_data_c, Salary_Y, boost_preds_c$.pred)
+# 
+# boost_pred_table_c <- test_data_c %>%
+#   mutate(Salary_Pred = boost_preds_c$.pred,
+#          Salary_diff = boost_preds_c$.pred - Salary_Y,
+#          Per_error = (boost_preds_c$.pred - Salary_Y) / Salary_Y) %>%
+#   select(c(Player, MLS_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
+# 
+# ggplot(boost_pred_table_c, aes(MLS_C, Per_error)) + 
+#   geom_point()
+# 
+# ggplot(boost_pred_table_c, aes(MLS_C, Salary_diff)) + 
+#   geom_point()
+# 
+# ggplot(boost_pred_table_c, aes(Salary_Y, Per_error)) + 
+#   geom_point(aes(color = MLS_C))
+# 
+# ggplot(boost_pred_table_c, aes(Salary_Y, Salary_Pred)) + 
+#   geom_point() +
+#   geom_point(aes(Salary_Y, Salary_Y), color = 'red')
+# 
+# c_boost_results <- c("Curr Boost", rmse(test_data_c, Salary_Y, boost_preds_c$.pred)$.estimate, rsq(test_data_c, Salary_Y, boost_preds_c$.pred)$.estimate,
+#                         mae(test_data_c, Salary_Y, boost_preds_c$.pred)$.estimate, 
+#                         mean(abs((boost_preds_c$.pred - test_data_c$Salary_Y)) / test_data_c$Salary_Y))
 
 ## ------------------------------ RF --------------------------------------- ##
 
@@ -453,38 +470,38 @@ rf_res_c <- rf_wf_c %>%
     metrics = multi_metric
   )
 
-best_rf_c <- rf_res_c %>% select_best("mape")
+best_rf_c <- rf_res_c %>% select_best("rmse")
 
 final_rf_c <- rf_wf_c %>%
   finalize_workflow(best_rf_c) %>%
   fit(train_data_c)
 
-rf_preds_c <- predict(final_rf_c, test_data_c)
+save(list = 'final_rf_c', file = 'data/tuned_rf_model.rda')
 
-rmse(test_data_c, Salary_Y, rf_preds_c$.pred)
-rsq(test_data_c, Salary_Y, rf_preds_c$.pred)
-mae(test_data_c, Salary_Y, rf_preds_c$.pred)
-mape(test_data_c, Salary_Y, rf_preds_c$.pred)
-rpd(test_data_c, Salary_Y, rf_preds_c$.pred)
-rpiq(test_data_c, Salary_Y, rf_preds_c$.pred)
-
-rf_pred_table_c <- test_data_c %>%
-  mutate(Salary_Pred = rf_preds_c$.pred,
-         Salary_diff = rf_preds_c$.pred - Salary_Y,
-         Per_error = (rf_preds_c$.pred - Salary_Y) / Salary_Y) %>%
-  select(c(Player, MLS_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
-
-ggplot(rf_pred_table_c, aes(MLS_C, Per_error)) + 
-  geom_point()
-
-ggplot(rf_pred_table_c, aes(MLS_C, Salary_diff)) + 
-  geom_point()
-
-ggplot(rf_pred_table_c, aes(Salary_Y, Per_error)) + 
-  geom_point(aes(color = MLS_C))
-
-ggplot(rf_pred_table_c, aes(Salary_Y, Salary_Pred)) + 
-  geom_point() +
-  geom_point(aes(Salary_Y, Salary_Y), color = 'red')
-
-ggplot(rf_pred_table_c, aes(Salary_diff)) + geom_histogram()
+# rf_preds_c <- predict(final_rf_c, test_data_c)
+# 
+# rmse(test_data_c, Salary_Y, rf_preds_c$.pred)
+# rsq(test_data_c, Salary_Y, rf_preds_c$.pred)
+# mae(test_data_c, Salary_Y, rf_preds_c$.pred)
+# mape(test_data_c, Salary_Y, rf_preds_c$.pred)
+# 
+# rf_pred_table_c <- test_data_c %>%
+#   mutate(Salary_Pred = rf_preds_c$.pred,
+#          Salary_diff = rf_preds_c$.pred - Salary_Y,
+#          Per_error = (rf_preds_c$.pred - Salary_Y) / Salary_Y) %>%
+#   select(c(Player, MLS_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
+# 
+# ggplot(rf_pred_table_c, aes(MLS_C, Per_error)) + 
+#   geom_point()
+# 
+# ggplot(rf_pred_table_c, aes(MLS_C, Salary_diff)) + 
+#   geom_point()
+# 
+# ggplot(rf_pred_table_c, aes(Salary_Y, Per_error)) + 
+#   geom_point(aes(color = MLS_C))
+# 
+# ggplot(rf_pred_table_c, aes(Salary_Y, Salary_Pred)) + 
+#   geom_point() +
+#   geom_point(aes(Salary_Y, Salary_Y), color = 'red')
+# 
+# ggplot(rf_pred_table_c, aes(Salary_diff)) + geom_histogram()
