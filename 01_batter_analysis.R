@@ -382,8 +382,9 @@ ggplot(reg_pred_table_c, aes(Salary_Y, Salary_Pred)) +
 batter_rec_c <- 
   recipe(Salary_Y ~ ., data = train_data_c) %>%
   update_role(Player, new_role = "ID") %>%
-  step_poly(all_predictors(), degree = tune())
-  # step_interact(terms = ~ Salary_C:c(WAR_C, Age_C, Salary_change_P1, Salary_change_P2))
+  step_poly(all_predictors(), degree = 2) %>%
+  step_interact(terms = ~ Salary_C_poly_1:c(WAR_C_poly_1, Age_C_poly_1, 
+                                            Salary_change_P1_poly_1, Salary_change_P2_poly_1))
 
 
 boost_grid <- grid_regular(tree_depth(),
@@ -404,22 +405,22 @@ boost_res_c <- boost_wf_c %>%
     metrics = multi_metric
   )
 
-best_boost_c <- boost_res_c %>% select_best("mape")
+best_boost_c <- boost_res_c %>% select_best("mae")
 
+set.seed(333)
 final_boost_c <- boost_wf_c %>%
   finalize_workflow(best_boost_c) %>%
   fit(train_data_c)
 
-# save(list = 'final_boost_c', file = 'data/tuned_boost_model.rda')
+save(list = 'final_boost_c', file = 'data/tuned_boost_model.rda')
 
-# boost_preds_c <- predict(final_boost_c, test_data_c)
-# 
-# rmse(test_data_c, Salary_Y, boost_preds_c$.pred)
-# rsq(test_data_c, Salary_Y, boost_preds_c$.pred)
-# mae(test_data_c, Salary_Y, boost_preds_c$.pred)
-# mape(test_data_c, Salary_Y, boost_preds_c$.pred)
-# rpd(test_data_c, Salary_Y, boost_preds_c$.pred)
-# rpiq(test_data_c, Salary_Y, boost_preds_c$.pred)
+boost_preds_c <- predict(final_boost_c, test_data_c)
+
+rmse(test_data_c, Salary_Y, boost_preds_c$.pred)
+rsq(test_data_c, Salary_Y, boost_preds_c$.pred)
+mae(test_data_c, Salary_Y, boost_preds_c$.pred)
+mape(test_data_c, Salary_Y, boost_preds_c$.pred)
+
 # 
 # boost_pred_table_c <- test_data_c %>%
 #   mutate(Salary_Pred = boost_preds_c$.pred,
@@ -473,20 +474,21 @@ rf_res_c <- rf_wf_c %>%
     metrics = multi_metric
   )
 
-best_rf_c <- rf_res_c %>% select_best("rmse")
+best_rf_c <- rf_res_c %>% select_best("mape")
 
+set.seed(333)
 final_rf_c <- rf_wf_c %>%
   finalize_workflow(best_rf_c) %>%
   fit(train_data_c)
 
-# save(list = 'final_rf_c', file = 'data/tuned_rf_model.rda')
+save(list = 'final_rf_c', file = 'data/tuned_rf_model.rda')
 
-# rf_preds_c <- predict(final_rf_c, test_data_c)
-# 
-# rmse(test_data_c, Salary_Y, rf_preds_c$.pred)
-# rsq(test_data_c, Salary_Y, rf_preds_c$.pred)
-# mae(test_data_c, Salary_Y, rf_preds_c$.pred)
-# mape(test_data_c, Salary_Y, rf_preds_c$.pred)
+rf_preds_c <- predict(final_rf_c, test_data_c)
+
+rmse(test_data_c, Salary_Y, rf_preds_c$.pred)
+rsq(test_data_c, Salary_Y, rf_preds_c$.pred)
+mae(test_data_c, Salary_Y, rf_preds_c$.pred)
+mape(test_data_c, Salary_Y, rf_preds_c$.pred)
 # 
 # rf_pred_table_c <- test_data_c %>%
 #   mutate(Salary_Pred = rf_preds_c$.pred,
@@ -509,6 +511,3 @@ final_rf_c <- rf_wf_c %>%
 # 
 # ggplot(rf_pred_table_c, aes(Salary_diff)) + geom_histogram()
 
-load("data/tuned_rf_model.rda")
-
-mape(test_data_c, Salary_Y, Salary_C)
