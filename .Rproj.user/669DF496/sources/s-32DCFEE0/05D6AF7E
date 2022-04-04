@@ -12,13 +12,13 @@
     "properties": {
         "expression": "reg_coefs_c",
         "caption": "reg_coefs_c",
-        "totalObservations": "25",
-        "displayedObservations": "25",
+        "totalObservations": "41",
+        "displayedObservations": "41",
         "variables": "3",
-        "cacheKey": "2E90B03B",
+        "cacheKey": "3C2EDC2F",
         "object": "reg_coefs_c",
         "environment": "",
-        "contentUrl": "grid_resource/gridviewer.html?env=&obj=reg_coefs_c&cache_key=2E90B03B&max_cols=50",
+        "contentUrl": "grid_resource/gridviewer.html?env=&obj=reg_coefs_c&cache_key=3C2EDC2F&max_cols=50",
         "preview": "0",
         "source_window_id": "",
         "Source": "Source"

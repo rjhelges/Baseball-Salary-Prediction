@@ -62,7 +62,7 @@ reg_res <-
   tune_grid(
     resamples = folds,
     grid = reg_grid,
-    metrics = multi_metric
+    metrics = mape()
   )
 
 best_reg <- reg_res %>% select_best("mape")
@@ -300,14 +300,16 @@ batter_rec_stand_c <-
   update_role(Player, new_role = "ID") %>%
   step_center(all_predictors()) %>%
   step_scale(all_predictors()) %>%
-  step_interact(terms = ~ Salary_C:c(WAR_C, Age_C, Salary_change_P1, Salary_change_P2))
+  step_poly(all_predictors(), degree = tune())
+  # step_interact(terms = ~ Salary_C:c(WAR_C, Age_C, Salary_change_P1, Salary_change_P2))
 
 reg_mod_c <-
   linear_reg(penalty = tune(), mixture = tune()) %>%
   set_engine("glmnet")
 
 reg_grid_c <- grid_regular(penalty(),
-                         mixture(), 
+                         mixture(),
+                         degree(),
                          levels = 5)
 
 set.seed(333)
@@ -341,35 +343,35 @@ reg_coefs_c <- final_reg_c %>%
 final_fit_reg_c <- final_reg_c %>%
   last_fit(data_split_c)
 
-save(list = 'final_fit_reg_c', file = 'data/tuned_reg_model.rda')
+# save(list = 'final_fit_reg_c', file = 'data/tuned_reg_model.rda')
 
-# reg_preds_c <- final_fit_reg_c$.predictions
-# 
-# rmse(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
-# rsq(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
-# mae(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
-# mape(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
-# 
-# rmse(test_data_c, Salary_Y, Salary_C)
-# rsq(test_data_c, Salary_Y, Salary_C)
-# mae(test_data_c, Salary_Y, Salary_C)
-# mape(test_data_c, Salary_Y, Salary_C)
-# 
-# 
-# reg_pred_table_c <- test_data_c %>%
-#   mutate(Salary_Pred = reg_preds_c[[1]]$.pred,
-#          Per_error = (reg_preds_c[[1]]$.pred - Salary_Y) / Salary_Y) %>%
-#   select(c(Player, MLS_C, Salary_Y, Salary_Pred, Per_error))
-# 
-# ggplot(reg_pred_table_c, aes(MLS_C, Per_error)) + 
-#   geom_point()
-# 
-# ggplot(reg_pred_table_c, aes(Salary_Y, Per_error)) + 
-#   geom_point(aes(color = MLS_C))
-# 
-# ggplot(reg_pred_table_c, aes(Salary_Y, Salary_Pred)) + 
-#   geom_point() +
-#   geom_point(aes(Salary_Y, Salary_Y), color = 'red')
+reg_preds_c <- final_fit_reg_c$.predictions
+
+rmse(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
+rsq(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
+mae(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
+mape(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
+
+rmse(test_data_c, Salary_Y, Salary_C)
+rsq(test_data_c, Salary_Y, Salary_C)
+mae(test_data_c, Salary_Y, Salary_C)
+mape(test_data_c, Salary_Y, Salary_C)
+
+
+reg_pred_table_c <- test_data_c %>%
+  mutate(Salary_Pred = reg_preds_c[[1]]$.pred,
+         Per_error = (reg_preds_c[[1]]$.pred - Salary_Y) / Salary_Y) %>%
+  select(c(Player, MLS_C, Salary_Y, Salary_Pred, Per_error))
+
+ggplot(reg_pred_table_c, aes(MLS_C, Per_error)) +
+  geom_point()
+
+ggplot(reg_pred_table_c, aes(Salary_Y, Per_error)) +
+  geom_point(aes(color = MLS_C))
+
+ggplot(reg_pred_table_c, aes(Salary_Y, Salary_Pred)) +
+  geom_point() +
+  geom_point(aes(Salary_Y, Salary_Y), color = 'red')
 # 
 # c_reg_results <- c("Curr Reg", rmse(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)$.estimate, rsq(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)$.estimate,
 #                       mae(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)$.estimate, 
@@ -380,7 +382,8 @@ save(list = 'final_fit_reg_c', file = 'data/tuned_reg_model.rda')
 batter_rec_c <- 
   recipe(Salary_Y ~ ., data = train_data_c) %>%
   update_role(Player, new_role = "ID") %>%
-  step_interact(terms = ~ Salary_C:c(WAR_C, Age_C, Salary_change_P1, Salary_change_P2))
+  step_poly(all_predictors(), degree = tune())
+  # step_interact(terms = ~ Salary_C:c(WAR_C, Age_C, Salary_change_P1, Salary_change_P2))
 
 
 boost_grid <- grid_regular(tree_depth(),
@@ -407,7 +410,7 @@ final_boost_c <- boost_wf_c %>%
   finalize_workflow(best_boost_c) %>%
   fit(train_data_c)
 
-save(list = 'final_boost_c', file = 'data/tuned_boost_model.rda')
+# save(list = 'final_boost_c', file = 'data/tuned_boost_model.rda')
 
 # boost_preds_c <- predict(final_boost_c, test_data_c)
 # 
@@ -476,7 +479,7 @@ final_rf_c <- rf_wf_c %>%
   finalize_workflow(best_rf_c) %>%
   fit(train_data_c)
 
-save(list = 'final_rf_c', file = 'data/tuned_rf_model.rda')
+# save(list = 'final_rf_c', file = 'data/tuned_rf_model.rda')
 
 # rf_preds_c <- predict(final_rf_c, test_data_c)
 # 
@@ -505,3 +508,7 @@ save(list = 'final_rf_c', file = 'data/tuned_rf_model.rda')
 #   geom_point(aes(Salary_Y, Salary_Y), color = 'red')
 # 
 # ggplot(rf_pred_table_c, aes(Salary_diff)) + geom_histogram()
+
+load("data/tuned_rf_model.rda")
+
+mape(test_data_c, Salary_Y, Salary_C)
