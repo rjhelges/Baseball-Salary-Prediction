@@ -18,9 +18,9 @@ batter_dta <- batter_dta %>%
 
 batter <- as.tibble(batter_dta)
 
-multi_metric <- metric_set(rmse, rsq, mae, mape)
+multi_metric <- metric_set(mae, mape)
 
-corrplot(cor(batter[,c(2:64)]), type = "upper")
+# corrplot(cor(batter[,c(2:64)]), type = "upper")
 
 # corr_cols <- c('Salary_Y', 'Age_C', 'PA_C', 'HR_C', 'R_C', 'RBI_C', 'WAR_C', 'MLS_C', 'Salary_C',
 #                'PA_P1', 'HR_P1', 'R_P1', 'RBI_P1', 'WAR_P1', 'MLS_P1', 'Salary_P1',
@@ -38,16 +38,17 @@ test_data <- testing(data_split)
 batter_rec_stand <- 
   recipe(Salary_Y ~ ., data = train_data) %>%
   update_role(Player, new_role = "ID") %>%
-  step_center(all_predictors()) %>%
-  step_scale(all_predictors())
+  step_normalize(all_numeric(), -all_outcomes())
 
 reg_mod <-
   linear_reg(penalty = tune(), mixture = tune()) %>%
   set_engine("glmnet")
 
-reg_grid <- grid_regular(penalty(),
-                         mixture(), 
-                         levels = 5)
+reg_grid <- grid_latin_hypercube(
+  penalty(),
+  mixture(),
+  size = 30
+)
 
 set.seed(333)
 folds <- vfold_cv(train_data, 10)
@@ -62,7 +63,7 @@ reg_res <-
   tune_grid(
     resamples = folds,
     grid = reg_grid,
-    metrics = mape()
+    metrics = multi_metric
   )
 
 best_reg <- reg_res %>% select_best("mape")
@@ -80,19 +81,22 @@ reg_coefs <- final_reg %>%
 final_fit_reg <- final_reg %>%
   last_fit(data_split)
 
-save(list = 'final_fit_reg', file = 'data/full_reg_model.rda')
+# save(list = 'final_fit_reg', file = 'data/full_reg_model.rda')
 
-# reg_preds <- final_fit_reg$.predictions
-# 
-# rmse(test_data, Salary_Y, reg_preds[[1]]$.pred)
-# rsq(test_data, Salary_Y, reg_preds[[1]]$.pred)
-# mean(abs((reg_preds[[1]]$.pred - test_data$Salary_Y)) / test_data$Salary_Y)
+reg_preds <- final_fit_reg$.predictions
+
+mae(test_data, Salary_Y, reg_preds[[1]]$.pred)
+mape(test_data, Salary_Y, reg_preds[[1]]$.pred)
+
+mae(test_data, Salary_Y, Salary_C)
+mape(test_data, Salary_Y, Salary_C)
 
 
-# reg_pred_table <- test_data %>%
-#   mutate(Salary_Pred = reg_preds[[1]]$.pred,
-#          Per_error = (reg_preds[[1]]$.pred - Salary_Y) / Salary_Y) %>%
-#   select(c(Player, MLS_C, Salary_Y, Salary_Pred, Per_error))
+reg_pred_table <- test_data %>%
+  mutate(Salary_Pred = reg_preds[[1]]$.pred,
+         Per_error = (reg_preds[[1]]$.pred - Salary_Y) / Salary_Y,
+         Salary_C = test_data$Salary_C) %>%
+  select(c(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Per_error))
 # 
 # ggplot(reg_pred_table, aes(MLS_C, Per_error)) + 
 #   geom_point()
@@ -126,19 +130,26 @@ batter_rec <-
 tune_boost <-
   boost_tree(
     tree_depth = tune(),
-    trees = tune(),
+    trees = 1000,
+    min_n = tune(),
+    loss_reduction = tune(),
+    sample_size = tune(),
     learn_rate = tune(),
     mtry = tune()
   ) %>%
-  set_engine("xgboost", nthread = 5) %>%
+  set_engine("xgboost", nthread = 8) %>%
   set_mode("regression")
 
 
-boost_grid <- grid_regular(tree_depth(),
-                           trees(),
-                           learn_rate(),
-                           finalize(mtry(), train_data),
-                           levels = 5)
+boost_grid <- grid_latin_hypercube(
+  tree_depth(),
+  min_n(),
+  loss_reduction(),
+  sample_size = sample_prop(c(0.4, 0.8)),
+  finalize(mtry(), batter_rec$template),
+  learn_rate(),
+  size = 100
+)
 
 set.seed(333)
 boost_wf <- workflow() %>%
@@ -158,19 +169,19 @@ final_boost <- boost_wf %>%
   finalize_workflow(best_boost) %>%
   fit(train_data)
 
-save(list = 'final_boost', file = 'data/full_boost_model.rda')
+# save(list = 'final_boost', file = 'data/full_boost_model.rda')
 
-# boost_preds <- predict(final_boost, test_data)
-# 
-# rmse(test_data, Salary_Y, boost_preds$.pred)
-# rsq(test_data, Salary_Y, boost_preds$.pred)
-# mean(abs((boost_preds$.pred - test_data$Salary_Y)) / test_data$Salary_Y)
-# 
-# boost_pred_table <- test_data %>%
-#   mutate(Salary_Pred = boost_preds$.pred,
-#          Salary_diff = boost_preds$.pred - Salary_Y,
-#          Per_error = (boost_preds$.pred - Salary_Y) / Salary_Y) %>%
-#   select(c(Player, MLS_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
+boost_preds <- predict(final_boost, test_data)
+
+mae(test_data, Salary_Y, boost_preds$.pred)
+mape(test_data, Salary_Y, boost_preds$.pred)
+
+boost_pred_table <- test_data %>%
+  mutate(Salary_Pred = boost_preds$.pred,
+         Salary_diff = boost_preds$.pred - Salary_Y,
+         Per_error = (boost_preds$.pred - Salary_Y) / Salary_Y,
+         Salary_C = test_data$Salary_C) %>%
+  select(c(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
 # 
 # ggplot(boost_pred_table, aes(MLS_C, Per_error)) + 
 #   geom_point()
@@ -197,18 +208,19 @@ save(list = 'final_boost', file = 'data/full_boost_model.rda')
 
 tune_rf <-
   rand_forest(
-    trees = tune(),
+    trees = 1000,
     min_n = tune(),
     mtry = tune()
   ) %>%
-  set_engine("ranger", num.threads = 5) %>%
+  set_engine("ranger", importance = "impurity", num.threads = 8) %>%
   set_mode("regression")
 
 
-rf_grid <- grid_regular(trees(),
-                        min_n(),
-                        finalize(mtry(), train_data),
-                        levels = 5)
+rf_grid <- grid_latin_hypercube(
+  min_n(),
+  finalize(mtry(), batter_rec$template),
+  size = 100
+)
 
 set.seed(333)
 rf_wf <- workflow() %>%
@@ -228,19 +240,19 @@ final_rf <- rf_wf %>%
   finalize_workflow(best_rf) %>%
   fit(train_data)
 
-save(list = 'final_rf', file = 'data/full_rf_model.rda')
+# save(list = 'final_rf', file = 'data/full_rf_model.rda')
 
-# rf_preds <- predict(final_rf, test_data)
-# 
-# rmse(test_data, Salary_Y, rf_preds$.pred)
-# rsq(test_data, Salary_Y, rf_preds$.pred)
-# mean((rf_preds$.pred - test_data$Salary_Y) / test_data$Salary_Y)
-# 
-# rf_pred_table <- test_data %>%
-#   mutate(Salary_Pred = rf_preds$.pred,
-#          Salary_diff = rf_preds$.pred - Salary_Y,
-#          Per_error = (rf_preds$.pred - Salary_Y) / Salary_Y) %>%
-#   select(c(Player, MLS_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
+rf_preds <- predict(final_rf, test_data)
+
+mae(test_data, Salary_Y, rf_preds$.pred)
+mape(test_data, Salary_Y, rf_preds$.pred)
+
+rf_pred_table <- test_data %>%
+  mutate(Salary_Pred = rf_preds$.pred,
+         Salary_diff = rf_preds$.pred - Salary_Y,
+         Per_error = (rf_preds$.pred - Salary_Y) / Salary_Y,
+         Salary_C = test_data$Salary_C) %>%
+  select(c(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
 # 
 # ggplot(rf_pred_table, aes(MLS_C, Per_error)) + 
 #   geom_point()
@@ -298,22 +310,21 @@ test_data_c <- testing(data_split_c)
 batter_rec_stand_c <- 
   recipe(Salary_Y ~ ., data = train_data_c) %>%
   update_role(Player, new_role = "ID") %>%
-  step_center(all_predictors()) %>%
-  step_scale(all_predictors()) %>%
-  step_poly(all_predictors(), degree = tune())
-  # step_interact(terms = ~ Salary_C:c(WAR_C, Age_C, Salary_change_P1, Salary_change_P2))
+  step_normalize(all_numeric(), -all_outcomes()) %>%
+  step_interact(terms = ~ Salary_C:all_predictors())
 
 reg_mod_c <-
   linear_reg(penalty = tune(), mixture = tune()) %>%
   set_engine("glmnet")
 
-reg_grid_c <- grid_regular(penalty(),
-                         mixture(),
-                         degree(),
-                         levels = 5)
+reg_grid_c <- grid_latin_hypercube(
+  penalty(),
+  mixture(),
+  size = 30
+)
 
 set.seed(333)
-folds <- vfold_cv(train_data_c, 10)
+folds_c <- vfold_cv(train_data_c, 10)
 
 set.seed(333)
 reg_wf_c <- workflow() %>%
@@ -323,7 +334,7 @@ reg_wf_c <- workflow() %>%
 reg_res_c <-
   reg_wf_c %>%
   tune_grid(
-    resamples = folds,
+    resamples = folds_c,
     grid = reg_grid_c,
     metrics = multi_metric
   )
@@ -347,31 +358,28 @@ final_fit_reg_c <- final_reg_c %>%
 
 reg_preds_c <- final_fit_reg_c$.predictions
 
-rmse(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
-rsq(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
 mae(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
 mape(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)
 
-rmse(test_data_c, Salary_Y, Salary_C)
-rsq(test_data_c, Salary_Y, Salary_C)
 mae(test_data_c, Salary_Y, Salary_C)
 mape(test_data_c, Salary_Y, Salary_C)
 
 
 reg_pred_table_c <- test_data_c %>%
   mutate(Salary_Pred = reg_preds_c[[1]]$.pred,
-         Per_error = (reg_preds_c[[1]]$.pred - Salary_Y) / Salary_Y) %>%
-  select(c(Player, MLS_C, Salary_Y, Salary_Pred, Per_error))
+         Per_error = (reg_preds_c[[1]]$.pred - Salary_Y) / Salary_Y,
+         Salary_C = test_data$Salary_C) %>%
+  select(c(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Per_error))
 
-ggplot(reg_pred_table_c, aes(MLS_C, Per_error)) +
-  geom_point()
-
-ggplot(reg_pred_table_c, aes(Salary_Y, Per_error)) +
-  geom_point(aes(color = MLS_C))
-
-ggplot(reg_pred_table_c, aes(Salary_Y, Salary_Pred)) +
-  geom_point() +
-  geom_point(aes(Salary_Y, Salary_Y), color = 'red')
+# ggplot(reg_pred_table_c, aes(MLS_C, Per_error)) +
+#   geom_point()
+# 
+# ggplot(reg_pred_table_c, aes(Salary_Y, Per_error)) +
+#   geom_point(aes(color = MLS_C))
+# 
+# ggplot(reg_pred_table_c, aes(Salary_Y, Salary_Pred)) +
+#   geom_point() +
+#   geom_point(aes(Salary_Y, Salary_Y), color = 'red')
 # 
 # c_reg_results <- c("Curr Reg", rmse(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)$.estimate, rsq(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)$.estimate,
 #                       mae(test_data_c, Salary_Y, reg_preds_c[[1]]$.pred)$.estimate, 
@@ -382,51 +390,52 @@ ggplot(reg_pred_table_c, aes(Salary_Y, Salary_Pred)) +
 batter_rec_c <- 
   recipe(Salary_Y ~ ., data = train_data_c) %>%
   update_role(Player, new_role = "ID") %>%
-  step_poly(all_predictors(), degree = 2) %>%
-  step_interact(terms = ~ Salary_C_poly_1:c(WAR_C_poly_1, Age_C_poly_1, 
-                                            Salary_change_P1_poly_1, Salary_change_P2_poly_1))
-
-
-boost_grid <- grid_regular(tree_depth(),
-                           trees(),
-                           learn_rate(),
-                           finalize(mtry(), train_data_c),
-                           levels = 5)
+  step_interact(terms = ~ Salary_C:all_predictors())
 
 set.seed(333)
 boost_wf_c <- workflow() %>%
   add_model(tune_boost) %>%
   add_recipe(batter_rec_c)
 
+boost_grid_c <- grid_latin_hypercube(
+  tree_depth(),
+  min_n(),
+  loss_reduction(),
+  sample_size = sample_prop(c(0.4, 0.8)),
+  mtry(range = c(2, 40)),
+  learn_rate(),
+  size = 100
+)
+
+
 boost_res_c <- boost_wf_c %>%
   tune_grid(
-    resamples = folds,
-    grid = boost_grid,
+    resamples = folds_c,
+    grid = boost_grid_c,
     metrics = multi_metric
   )
 
-best_boost_c <- boost_res_c %>% select_best("mae")
+best_boost_c <- boost_res_c %>% select_best("mape")
 
 set.seed(333)
 final_boost_c <- boost_wf_c %>%
   finalize_workflow(best_boost_c) %>%
   fit(train_data_c)
 
-save(list = 'final_boost_c', file = 'data/tuned_boost_model.rda')
+# save(list = 'final_boost_c', file = 'data/tuned_boost_model.rda')
 
 boost_preds_c <- predict(final_boost_c, test_data_c)
 
-rmse(test_data_c, Salary_Y, boost_preds_c$.pred)
-rsq(test_data_c, Salary_Y, boost_preds_c$.pred)
 mae(test_data_c, Salary_Y, boost_preds_c$.pred)
 mape(test_data_c, Salary_Y, boost_preds_c$.pred)
 
-# 
-# boost_pred_table_c <- test_data_c %>%
-#   mutate(Salary_Pred = boost_preds_c$.pred,
-#          Salary_diff = boost_preds_c$.pred - Salary_Y,
-#          Per_error = (boost_preds_c$.pred - Salary_Y) / Salary_Y) %>%
-#   select(c(Player, MLS_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
+
+boost_pred_table_c <- test_data_c %>%
+  mutate(Salary_Pred = boost_preds_c$.pred,
+         Salary_diff = boost_preds_c$.pred - Salary_Y,
+         Per_error = (boost_preds_c$.pred - Salary_Y) / Salary_Y,
+         Salary_C = test_data$Salary_C) %>%
+  select(c(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
 # 
 # ggplot(boost_pred_table_c, aes(MLS_C, Per_error)) + 
 #   geom_point()
@@ -449,18 +458,19 @@ mape(test_data_c, Salary_Y, boost_preds_c$.pred)
 
 tune_rf <-
   rand_forest(
-    trees = tune(),
+    trees = 1000,
     min_n = tune(),
     mtry = tune()
   ) %>%
-  set_engine("ranger", num.threads = 5) %>%
+  set_engine("ranger", importance = "impurity", num.threads = 8) %>%
   set_mode("regression")
 
 
-rf_grid_c <- grid_regular(trees(),
-                        min_n(),
-                        finalize(mtry(), train_data_c),
-                        levels = 5)
+rf_grid_c <- grid_latin_hypercube(
+  min_n(),
+  mtry(range = c(2, 40)),
+  size = 100
+)
 
 set.seed(333)
 rf_wf_c <- workflow() %>%
@@ -469,7 +479,7 @@ rf_wf_c <- workflow() %>%
 
 rf_res_c <- rf_wf_c %>%
   tune_grid(
-    resamples = folds,
+    resamples = folds_c,
     grid = rf_grid_c,
     metrics = multi_metric
   )
@@ -481,20 +491,19 @@ final_rf_c <- rf_wf_c %>%
   finalize_workflow(best_rf_c) %>%
   fit(train_data_c)
 
-save(list = 'final_rf_c', file = 'data/tuned_rf_model.rda')
+# save(list = 'final_rf_c', file = 'data/tuned_rf_model.rda')
 
 rf_preds_c <- predict(final_rf_c, test_data_c)
 
-rmse(test_data_c, Salary_Y, rf_preds_c$.pred)
-rsq(test_data_c, Salary_Y, rf_preds_c$.pred)
 mae(test_data_c, Salary_Y, rf_preds_c$.pred)
 mape(test_data_c, Salary_Y, rf_preds_c$.pred)
-# 
-# rf_pred_table_c <- test_data_c %>%
-#   mutate(Salary_Pred = rf_preds_c$.pred,
-#          Salary_diff = rf_preds_c$.pred - Salary_Y,
-#          Per_error = (rf_preds_c$.pred - Salary_Y) / Salary_Y) %>%
-#   select(c(Player, MLS_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
+
+rf_pred_table_c <- test_data_c %>%
+  mutate(Salary_Pred = rf_preds_c$.pred,
+         Salary_diff = rf_preds_c$.pred - Salary_Y,
+         Per_error = (rf_preds_c$.pred - Salary_Y) / Salary_Y,
+         Salary_C = test_data$Salary_C) %>%
+  select(c(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
 # 
 # ggplot(rf_pred_table_c, aes(MLS_C, Per_error)) + 
 #   geom_point()
@@ -511,3 +520,6 @@ mape(test_data_c, Salary_Y, rf_preds_c$.pred)
 # 
 # ggplot(rf_pred_table_c, aes(Salary_diff)) + geom_histogram()
 
+save(list = c('reg_pred_table', 'boost_pred_table', 'rf_pred_table', 'final_reg', 'final_boost', 'final_rf',
+              'reg_pred_table_c', 'boost_pred_table_c', 'rf_pred_table_c', 'final_reg_c', 'final_boost_c', 'final_rf_c'), 
+     file = "data/01-batter-analysis.rda")

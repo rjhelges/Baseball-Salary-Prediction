@@ -1,0 +1,27 @@
+{
+    "id": "B8B1CAA0",
+    "path": "~/GT_OMSA/ISYE_7406/Baseball-Salary-Prediction/02_batter_analysis.R",
+    "project_path": "02_batter_analysis.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1649096900023.0,
+    "source_on_save": false,
+    "relative_order": 9,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "495,0",
+        "scrollLine": "465"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1649133406,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1649133406990,
+    "read_only": false,
+    "read_only_alternatives": []
+}
