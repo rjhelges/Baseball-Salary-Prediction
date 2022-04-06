@@ -3,7 +3,7 @@
     "path": "~/GT_OMSA/ISYE_7406/Baseball-Salary-Prediction/01_batter_analysis.R",
     "project_path": "01_batter_analysis.R",
     "type": "r_source",
-    "hash": "245417937",
+    "hash": "0",
     "contents": "",
     "dirty": false,
     "created": 1648927170742.0,
@@ -13,8 +13,8 @@
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "525,0",
-        "scrollLine": "493"
+        "cursorPosition": "298,21",
+        "scrollLine": "0"
     },
     "folds": "",
     "lastKnownWriteTime": 1649181848,
