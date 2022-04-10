@@ -72,17 +72,17 @@ reg_res <-
 
 best_reg <- reg_res %>% select_best("mape")
 
-final_reg <- reg_wf %>%
+final_reg_p <- reg_wf %>%
   finalize_workflow(best_reg) %>%
   fit(train_data)
 
-reg_coefs <- final_reg %>% 
+reg_coefs <- final_reg_p %>% 
   extract_fit_parsnip() %>% 
   tidy() %>%
   mutate(coef_magnitude = abs(estimate)) %>%
   select(c('term', 'estimate', 'coef_magnitude'))
 
-final_fit_reg <- final_reg %>%
+final_fit_reg <- final_reg_p %>%
   last_fit(data_split)
 
 reg_preds <- final_fit_reg$.predictions
@@ -94,7 +94,7 @@ mae(test_data, Salary_Y, Salary_C)
 mape(test_data, Salary_Y, Salary_C)
 
 
-reg_pred_table <- test_data %>%
+reg_pred_table_p <- test_data %>%
   mutate(Salary_Pred = reg_preds[[1]]$.pred,
          Per_error = (reg_preds[[1]]$.pred - Salary_Y) / Salary_Y,
          Salary_C = test_data$Salary_C) %>%
@@ -168,16 +168,16 @@ boost_res <- boost_wf %>%
 
 best_boost <- boost_res %>% select_best("mape")
 
-final_boost <- boost_wf %>%
+final_boost_p <- boost_wf %>%
   finalize_workflow(best_boost) %>%
   fit(train_data)
 
-boost_preds <- predict(final_boost, test_data)
+boost_preds <- predict(final_boost_p, test_data)
 
 mae(test_data, Salary_Y, boost_preds$.pred)
 mape(test_data, Salary_Y, boost_preds$.pred)
 
-boost_pred_table <- test_data %>%
+boost_pred_table_p <- test_data %>%
   mutate(Salary_Pred = boost_preds$.pred,
          Salary_diff = boost_preds$.pred - Salary_Y,
          Per_error = (boost_preds$.pred - Salary_Y) / Salary_Y,
@@ -239,29 +239,29 @@ rf_res <- rf_wf %>%
 
 best_rf <- rf_res %>% select_best("mape")
 
-final_rf <- rf_wf %>%
+final_rf_p <- rf_wf %>%
   finalize_workflow(best_rf) %>%
   fit(train_data)
 
-rf_preds <- predict(final_rf, test_data)
+rf_preds <- predict(final_rf_p, test_data)
 
 mae(test_data, Salary_Y, rf_preds$.pred)
 mape(test_data, Salary_Y, rf_preds$.pred)
 
-rf_pred_table <- test_data %>%
+rf_pred_table_p <- test_data %>%
   mutate(Salary_Pred = rf_preds$.pred,
          Salary_diff = rf_preds$.pred - Salary_Y,
          Per_error = (rf_preds$.pred - Salary_Y) / Salary_Y,
          Salary_C = test_data$Salary_C) %>%
   select(c(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_diff, Per_error))
 
-final_rf %>%
-    pull_workflow_fit() %>%
-    vip(geom = "point")
-
-final_boost %>%
-  pull_workflow_fit() %>%
-  vip(geom = "point")
+# final_rf %>%
+#     pull_workflow_fit() %>%
+#     vip(geom = "point")
+# 
+# final_boost %>%
+#   pull_workflow_fit() %>%
+#   vip(geom = "point")
 
 # 
 # ggplot(rf_pred_table, aes(MLS_C, Per_error)) + 
@@ -343,17 +343,17 @@ reg_res_c <-
 
 best_reg_c <- reg_res_c %>% select_best("mape")
 
-final_reg_c <- reg_wf_c %>%
+final_reg_p_c <- reg_wf_c %>%
   finalize_workflow(best_reg_c) %>%
   fit(train_data_c)
 
-reg_coefs_c <- final_reg_c %>% 
+reg_coefs_c <- final_reg_p_c %>% 
   extract_fit_parsnip() %>% 
   tidy() %>%
   mutate(coef_magnitude = abs(estimate)) %>%
   select(c('term', 'estimate', 'coef_magnitude'))
 
-final_fit_reg_c <- final_reg_c %>%
+final_fit_reg_c <- final_reg_p_c %>%
   last_fit(data_split_c)
 
 reg_preds_c <- final_fit_reg_c$.predictions
@@ -365,7 +365,7 @@ mae(test_data_c, Salary_Y, Salary_C)
 mape(test_data_c, Salary_Y, Salary_C)
 
 
-reg_pred_table_c <- test_data_c %>%
+reg_pred_table_p_c <- test_data_c %>%
   mutate(Salary_Pred = reg_preds_c[[1]]$.pred,
          Per_error = (reg_preds_c[[1]]$.pred - Salary_Y) / Salary_Y,
          Salary_C = test_data$Salary_C) %>%
@@ -420,17 +420,17 @@ boost_res_c <- boost_wf_c %>%
 best_boost_c <- boost_res_c %>% select_best("mape")
 
 set.seed(333)
-final_boost_c <- boost_wf_c %>%
+final_boost_p_c <- boost_wf_c %>%
   finalize_workflow(best_boost_c) %>%
   fit(train_data)
 
-boost_preds_c <- predict(final_boost_c, test_data)
+boost_preds_c <- predict(final_boost_p_c, test_data)
 
 mae(test_data, Salary_Y, boost_preds_c$.pred)
 mape(test_data, Salary_Y, boost_preds_c$.pred)
 
 
-boost_pred_table_c <- test_data %>%
+boost_pred_table_p_c <- test_data %>%
   mutate(Salary_Pred = boost_preds_c$.pred,
          Salary_diff = boost_preds_c$.pred - Salary_Y,
          Per_error = (boost_preds_c$.pred - Salary_Y) / Salary_Y,
@@ -488,16 +488,16 @@ rf_res_c <- rf_wf_c %>%
 best_rf_c <- rf_res_c %>% select_best("mape")
 
 set.seed(333)
-final_rf_c <- rf_wf_c %>%
+final_rf_p_c <- rf_wf_c %>%
   finalize_workflow(best_rf_c) %>%
   fit(train_data)
 
-rf_preds_c <- predict(final_rf_c, test_data)
+rf_preds_c <- predict(final_rf_p_c, test_data)
 
 mae(test_data, Salary_Y, rf_preds_c$.pred)
 mape(test_data, Salary_Y, rf_preds_c$.pred)
 
-rf_pred_table_c <- test_data_c %>%
+rf_pred_table_p_c <- test_data_c %>%
   mutate(Salary_Pred = rf_preds_c$.pred,
          Salary_diff = rf_preds_c$.pred - Salary_Y,
          Per_error = (rf_preds_c$.pred - Salary_Y) / Salary_Y,
@@ -519,6 +519,6 @@ rf_pred_table_c <- test_data_c %>%
 # 
 # ggplot(rf_pred_table_c, aes(Salary_diff)) + geom_histogram()
 
-save(list = c('reg_pred_table', 'boost_pred_table', 'rf_pred_table', 'final_reg', 'final_boost', 'final_rf',
-              'reg_pred_table_c', 'boost_pred_table_c', 'rf_pred_table_c', 'final_reg_c', 'final_boost_c', 'final_rf_c'), 
+save(list = c('reg_pred_table_p', 'boost_pred_table_p', 'rf_pred_table_p', 'final_reg_p', 'final_boost_p', 'final_rf_p',
+              'reg_pred_table_p_c', 'boost_pred_table_p_c', 'rf_pred_table_p_c', 'final_reg_p_c', 'final_boost_p_c', 'final_rf_p_c'), 
      file = "data/01-pitcher-analysis.rda")

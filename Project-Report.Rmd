@@ -1,0 +1,385 @@
+---
+title: "Baseball Salary Prediction"
+author: "Ryan Helgeson"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment = NA, warning=FALSE, message=FALSE, fig.width =9, fig.height = 6, fig.align = 'center')
+```
+
+```{r libraries and data}
+library(tidyverse)
+library(tidymodels)
+library(corrplot)
+library(vip)
+library(gridExtra)
+library(scales)
+library(kableExtra)
+library(grid)
+
+rm(list = ls())
+
+load("data/01-batter-analysis.rda")
+load("data/01-pitcher-analysis.rda")
+```
+
+```{r agg data}
+
+full_pred_table <- reg_pred_table %>%
+  inner_join(boost_pred_table, by = "Player", suffix = c("", "_boost")) %>%
+  select(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_Pred_boost) %>%
+  inner_join(rf_pred_table, by = "Player", suffix = c("", "_rf")) %>%
+  select(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_Pred_boost, Salary_Pred_rf) %>%
+  rename(Salary_Pred_reg = Salary_Pred,
+         MLS = MLS_C) %>%
+  mutate(C_diff = Salary_C - Salary_Y,
+         Reg_diff = Salary_Pred_reg - Salary_Y,
+         Boost_diff = Salary_Pred_boost - Salary_Y,
+         Rf_diff = Salary_Pred_rf - Salary_Y,
+         C_pe = (Salary_Y - Salary_C) / Salary_Y,
+         Reg_pe = (Salary_Y - Salary_Pred_reg) / Salary_Y,
+         Boost_pe = (Salary_Y -Salary_Pred_boost) / Salary_Y,
+         Rf_pe = (Salary_Y -Salary_Pred_rf) / Salary_Y)
+
+c_plot <- ggplot(full_pred_table, aes(C_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Current Salary", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) +
+  scale_y_continuous(limits = c(0, 200)) +
+  theme(axis.title.y = element_blank())
+reg_plot <- ggplot(full_pred_table, aes(Reg_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Regularization Prediction", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) + 
+  scale_y_continuous(limits = c(0, 200)) +
+  theme(axis.title.y = element_blank())
+boost_plot <- ggplot(full_pred_table, aes(Boost_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Boosting Prediction", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) + 
+  scale_y_continuous(limits = c(0, 200)) +
+  theme(axis.title.y = element_blank())
+rf_plot <- ggplot(full_pred_table, aes(Rf_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Random Forest Prediciton", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) + 
+  scale_y_continuous(limits = c(0, 200)) +
+  theme(axis.title.y = element_blank())
+
+grid.arrange(c_plot, reg_plot, boost_plot, rf_plot, ncol=2, top = textGrob("Salary Difference (in Millions) between Models", gp=gpar(fontsize = 16, font=4)))
+
+
+```
+
+```{r PE charts}
+c_plot <- ggplot(full_pred_table, aes(C_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Current Salary", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 155)) +
+  theme(axis.title.y = element_blank())
+reg_plot <- ggplot(full_pred_table, aes(Reg_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Regularization Prediction", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 155)) +
+  theme(axis.title.y = element_blank())
+boost_plot <- ggplot(full_pred_table, aes(Boost_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Boosting Prediction", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 155)) +
+  theme(axis.title.y = element_blank())
+rf_plot <- ggplot(full_pred_table, aes(Rf_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Random Forest Prediction", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 155)) +
+  theme(axis.title.y = element_blank())
+
+grid.arrange(c_plot, reg_plot, boost_plot, rf_plot, ncol=2, top = textGrob("Percent Error between Models", gp=gpar(fontsize = 16, font=4)))
+```
+
+```{r Tables}
+
+results <- data.frame("Names" = c("Current", "Regularization", "Boosting", "Random Forest"),
+                      "Mean Average Error" = c(mae(full_pred_table, Salary_Y, Salary_C)$.estimate, 
+                                               mae(full_pred_table, Salary_Y, Salary_Pred_reg)$.estimate,
+                                               mae(full_pred_table, Salary_Y, Salary_Pred_boost)$.estimate, 
+                                               mae(full_pred_table, Salary_Y, Salary_Pred_rf)$.estimate),
+                      "Mean Average Percent Error" = c(mape(full_pred_table, Salary_Y, Salary_C)$.estimate, 
+                                                       mape(full_pred_table, Salary_Y, Salary_Pred_reg)$.estimate,
+                                                       mape(full_pred_table, Salary_Y, Salary_Pred_boost)$.estimate, 
+                                                       mape(full_pred_table, Salary_Y, Salary_Pred_rf)$.estimate))
+
+results <- results %>%
+  mutate(Mean.Average.Error = dollar(Mean.Average.Error),
+         Mean.Average.Percent.Error = percent(Mean.Average.Percent.Error/100))
+
+kable(results, align = c('lcc'), col.names = c("Model", "Mean Average Error", "Mean Average Percent Error"), row.names = FALSE, booktabs = T) %>%
+  kable_styling(latex_options = c("striped", "HOLD_position"), full_width = F)
+```
+
+```{r agg2 data}
+
+full_pred_table2 <- reg_pred_table_c %>%
+  inner_join(boost_pred_table_c, by = "Player", suffix = c("", "_boost")) %>%
+  select(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_Pred_boost) %>%
+  inner_join(rf_pred_table_c, by = "Player", suffix = c("", "_rf")) %>%
+  select(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_Pred_boost, Salary_Pred_rf) %>%
+  rename(Salary_Pred_reg = Salary_Pred,
+         MLS = MLS_C) %>%
+  mutate(C_diff = Salary_C - Salary_Y,
+         Reg_diff = Salary_Pred_reg - Salary_Y,
+         Boost_diff = Salary_Pred_boost - Salary_Y,
+         Rf_diff = Salary_Pred_rf - Salary_Y,
+         C_pe = (Salary_Y - Salary_C) / Salary_Y,
+         Reg_pe = (Salary_Y - Salary_Pred_reg) / Salary_Y,
+         Boost_pe = (Salary_Y -Salary_Pred_boost) / Salary_Y,
+         Rf_pe = (Salary_Y -Salary_Pred_rf) / Salary_Y)
+
+c_plot <- ggplot(full_pred_table2, aes(C_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Current Salary", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) +
+  scale_y_continuous(limits = c(0, 200)) +
+  theme(axis.title.y = element_blank())
+reg_plot <- ggplot(full_pred_table2, aes(Reg_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Regularization Prediction", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) + 
+  scale_y_continuous(limits = c(0, 200)) +
+  theme(axis.title.y = element_blank())
+boost_plot <- ggplot(full_pred_table2, aes(Boost_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Boosting Prediction", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) + 
+  scale_y_continuous(limits = c(0, 200)) +
+  theme(axis.title.y = element_blank())
+rf_plot <- ggplot(full_pred_table2, aes(Rf_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Random Forest Prediciton", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) + 
+  scale_y_continuous(limits = c(0, 200)) +
+  theme(axis.title.y = element_blank())
+
+grid.arrange(c_plot, reg_plot, boost_plot, rf_plot, ncol=2, top = textGrob("Salary Difference (in Millions) between Models", gp=gpar(fontsize = 16, font=4)))
+
+
+```
+
+```{r PE2 charts}
+c_plot <- ggplot(full_pred_table2, aes(C_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Current Salary", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 150)) +
+  theme(axis.title.y = element_blank())
+reg_plot <- ggplot(full_pred_table2, aes(Reg_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Regularization Prediction", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 150)) +
+  theme(axis.title.y = element_blank())
+boost_plot <- ggplot(full_pred_table2, aes(Boost_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Boosting Prediction", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 150)) +
+  theme(axis.title.y = element_blank())
+rf_plot <- ggplot(full_pred_table2, aes(Rf_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Random Forest Prediction", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 150)) +
+  theme(axis.title.y = element_blank())
+
+grid.arrange(c_plot, reg_plot, boost_plot, rf_plot, ncol=2, top = textGrob("Percent Error between Models", gp=gpar(fontsize = 16, font=4)))
+```
+
+```{r Tables2}
+
+results2 <- data.frame("Names" = c("Current", "Regularization", "Boosting", "Random Forest"),
+                      "Mean Average Error" = c(mae(full_pred_table2, Salary_Y, Salary_C)$.estimate, 
+                                               mae(full_pred_table2, Salary_Y, Salary_Pred_reg)$.estimate,
+                                               mae(full_pred_table2, Salary_Y, Salary_Pred_boost)$.estimate, 
+                                               mae(full_pred_table2, Salary_Y, Salary_Pred_rf)$.estimate),
+                      "Mean Average Percent Error" = c(mape(full_pred_table2, Salary_Y, Salary_C)$.estimate, 
+                                                       mape(full_pred_table2, Salary_Y, Salary_Pred_reg)$.estimate,
+                                                       mape(full_pred_table2, Salary_Y, Salary_Pred_boost)$.estimate, 
+                                                       mape(full_pred_table2, Salary_Y, Salary_Pred_rf)$.estimate))
+
+results2 <- results2 %>%
+  mutate(Mean.Average.Error = dollar(Mean.Average.Error),
+         Mean.Average.Percent.Error = percent(Mean.Average.Percent.Error/100))
+
+kable(results2, align = c('lcc'), col.names = c("Model", "Mean Average Error", "Mean Average Percent Error"), row.names = FALSE, booktabs = T) %>%
+  kable_styling(latex_options = c("striped", "HOLD_position"), full_width = F)
+```
+
+```{r agg data p}
+
+full_pred_table_p <- reg_pred_table_p %>%
+  inner_join(boost_pred_table_p, by = "Player", suffix = c("", "_boost")) %>%
+  select(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_Pred_boost) %>%
+  inner_join(rf_pred_table_p, by = "Player", suffix = c("", "_rf")) %>%
+  select(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_Pred_boost, Salary_Pred_rf) %>%
+  rename(Salary_Pred_reg = Salary_Pred,
+         MLS = MLS_C) %>%
+  mutate(C_diff = Salary_C - Salary_Y,
+         Reg_diff = Salary_Pred_reg - Salary_Y,
+         Boost_diff = Salary_Pred_boost - Salary_Y,
+         Rf_diff = Salary_Pred_rf - Salary_Y,
+         C_pe = (Salary_Y - Salary_C) / Salary_Y,
+         Reg_pe = (Salary_Y - Salary_Pred_reg) / Salary_Y,
+         Boost_pe = (Salary_Y -Salary_Pred_boost) / Salary_Y,
+         Rf_pe = (Salary_Y -Salary_Pred_rf) / Salary_Y)
+
+c_plot <- ggplot(full_pred_table_p, aes(C_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Current Salary", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) +
+  scale_y_continuous(limits = c(0, 195)) +
+  theme(axis.title.y = element_blank())
+reg_plot <- ggplot(full_pred_table_p, aes(Reg_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Regularization Prediction", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) + 
+  scale_y_continuous(limits = c(0, 195)) +
+  theme(axis.title.y = element_blank())
+boost_plot <- ggplot(full_pred_table_p, aes(Boost_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Boosting Prediction", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) + 
+  scale_y_continuous(limits = c(0, 195)) +
+  theme(axis.title.y = element_blank())
+rf_plot <- ggplot(full_pred_table_p, aes(Rf_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Random Forest Prediciton", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) + 
+  scale_y_continuous(limits = c(0, 195)) +
+  theme(axis.title.y = element_blank())
+
+grid.arrange(c_plot, reg_plot, boost_plot, rf_plot, ncol=2, top = textGrob("Salary Difference (in Millions) between Models", gp=gpar(fontsize = 16, font=4)))
+
+
+```
+
+```{r PE charts p}
+c_plot <- ggplot(full_pred_table_p, aes(C_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Current Salary", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 155)) +
+  theme(axis.title.y = element_blank())
+reg_plot <- ggplot(full_pred_table_p, aes(Reg_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Regularization Prediction", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 155)) +
+  theme(axis.title.y = element_blank())
+boost_plot <- ggplot(full_pred_table_p, aes(Boost_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Boosting Prediction", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 155)) +
+  theme(axis.title.y = element_blank())
+rf_plot <- ggplot(full_pred_table_p, aes(Rf_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Random Forest Prediction", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 155)) +
+  theme(axis.title.y = element_blank())
+
+grid.arrange(c_plot, reg_plot, boost_plot, rf_plot, ncol=2, top = textGrob("Percent Error between Models", gp=gpar(fontsize = 16, font=4)))
+```
+
+```{r Tables p}
+
+results_p <- data.frame("Names" = c("Current", "Regularization", "Boosting", "Random Forest"),
+                      "Mean Average Error" = c(mae(full_pred_table_p, Salary_Y, Salary_C)$.estimate, 
+                                               mae(full_pred_table_p, Salary_Y, Salary_Pred_reg)$.estimate,
+                                               mae(full_pred_table_p, Salary_Y, Salary_Pred_boost)$.estimate, 
+                                               mae(full_pred_table_p, Salary_Y, Salary_Pred_rf)$.estimate),
+                      "Mean Average Percent Error" = c(mape(full_pred_table_p, Salary_Y, Salary_C)$.estimate, 
+                                                       mape(full_pred_table_p, Salary_Y, Salary_Pred_reg)$.estimate,
+                                                       mape(full_pred_table_p, Salary_Y, Salary_Pred_boost)$.estimate, 
+                                                       mape(full_pred_table_p, Salary_Y, Salary_Pred_rf)$.estimate))
+
+results_p <- results_p %>%
+  mutate(Mean.Average.Error = dollar(Mean.Average.Error),
+         Mean.Average.Percent.Error = percent(Mean.Average.Percent.Error/100))
+
+kable(results_p, align = c('lcc'), col.names = c("Model", "Mean Average Error", "Mean Average Percent Error"), row.names = FALSE, booktabs = T) %>%
+  kable_styling(latex_options = c("striped", "HOLD_position"), full_width = F)
+```
+
+```{r agg data p2}
+
+full_pred_table_p2 <- reg_pred_table_p_c %>%
+  inner_join(boost_pred_table_p_c, by = "Player", suffix = c("", "_boost")) %>%
+  select(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_Pred_boost) %>%
+  inner_join(rf_pred_table_p_c, by = "Player", suffix = c("", "_rf")) %>%
+  select(Player, MLS_C, Salary_C, Salary_Y, Salary_Pred, Salary_Pred_boost, Salary_Pred_rf) %>%
+  rename(Salary_Pred_reg = Salary_Pred,
+         MLS = MLS_C) %>%
+  mutate(C_diff = Salary_C - Salary_Y,
+         Reg_diff = Salary_Pred_reg - Salary_Y,
+         Boost_diff = Salary_Pred_boost - Salary_Y,
+         Rf_diff = Salary_Pred_rf - Salary_Y,
+         C_pe = (Salary_Y - Salary_C) / Salary_Y,
+         Reg_pe = (Salary_Y - Salary_Pred_reg) / Salary_Y,
+         Boost_pe = (Salary_Y -Salary_Pred_boost) / Salary_Y,
+         Rf_pe = (Salary_Y -Salary_Pred_rf) / Salary_Y)
+
+c_plot <- ggplot(full_pred_table_p2, aes(C_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Current Salary", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) +
+  scale_y_continuous(limits = c(0, 195)) +
+  theme(axis.title.y = element_blank())
+reg_plot <- ggplot(full_pred_table_p2, aes(Reg_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Regularization Prediction", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) + 
+  scale_y_continuous(limits = c(0, 195)) +
+  theme(axis.title.y = element_blank())
+boost_plot <- ggplot(full_pred_table_p2, aes(Boost_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Boosting Prediction", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) + 
+  scale_y_continuous(limits = c(0, 195)) +
+  theme(axis.title.y = element_blank())
+rf_plot <- ggplot(full_pred_table_p2, aes(Rf_diff / 10^6)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Random Forest Prediciton", limits = c(-15, 15), breaks = c(-15, -10, -5, 0, 5, 10, 15)) + 
+  scale_y_continuous(limits = c(0, 195)) +
+  theme(axis.title.y = element_blank())
+
+grid.arrange(c_plot, reg_plot, boost_plot, rf_plot, ncol=2, top = textGrob("Salary Difference (in Millions) between Models", gp=gpar(fontsize = 16, font=4)))
+
+
+```
+
+```{r PE charts p2}
+c_plot <- ggplot(full_pred_table_p2, aes(C_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Current Salary", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 155)) +
+  theme(axis.title.y = element_blank())
+reg_plot <- ggplot(full_pred_table_p2, aes(Reg_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Regularization Prediction", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 155)) +
+  theme(axis.title.y = element_blank())
+boost_plot <- ggplot(full_pred_table_p2, aes(Boost_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Boosting Prediction", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 155)) +
+  theme(axis.title.y = element_blank())
+rf_plot <- ggplot(full_pred_table_p2, aes(Rf_pe)) + 
+  geom_histogram(bins = 50, colour = 1, fill = "red", alpha = 0.6) +
+  scale_x_continuous("Random Forest Prediction", labels = scales::percent, limits = c(-4, 1)) +
+  scale_y_continuous(limits = c(0, 155)) +
+  theme(axis.title.y = element_blank())
+
+grid.arrange(c_plot, reg_plot, boost_plot, rf_plot, ncol=2, top = textGrob("Percent Error between Models", gp=gpar(fontsize = 16, font=4)))
+```
+
+```{r Tables p2}
+
+results_p2 <- data.frame("Names" = c("Current", "Regularization", "Boosting", "Random Forest"),
+                      "Mean Average Error" = c(mae(full_pred_table_p2, Salary_Y, Salary_C)$.estimate, 
+                                               mae(full_pred_table_p2, Salary_Y, Salary_Pred_reg)$.estimate,
+                                               mae(full_pred_table_p2, Salary_Y, Salary_Pred_boost)$.estimate, 
+                                               mae(full_pred_table_p2, Salary_Y, Salary_Pred_rf)$.estimate),
+                      "Mean Average Percent Error" = c(mape(full_pred_table_p2, Salary_Y, Salary_C)$.estimate, 
+                                                       mape(full_pred_table_p2, Salary_Y, Salary_Pred_reg)$.estimate,
+                                                       mape(full_pred_table_p2, Salary_Y, Salary_Pred_boost)$.estimate, 
+                                                       mape(full_pred_table_p2, Salary_Y, Salary_Pred_rf)$.estimate))
+
+results_p2 <- results_p2 %>%
+  mutate(Mean.Average.Error = dollar(Mean.Average.Error),
+         Mean.Average.Percent.Error = percent(Mean.Average.Percent.Error/100))
+
+kable(results_p2, align = c('lcc'), col.names = c("Model", "Mean Average Error", "Mean Average Percent Error"), row.names = FALSE, booktabs = T) %>%
+  kable_styling(latex_options = c("striped", "HOLD_position"), full_width = F)
+```

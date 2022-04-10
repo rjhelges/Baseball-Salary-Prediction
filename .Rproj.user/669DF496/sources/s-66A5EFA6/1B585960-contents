@@ -1,0 +1,444 @@
+---
+title: 'Homework 5: Spaceship Titanic Prediction'
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment = NA, warning=FALSE, message=FALSE, fig.width =9, fig.height = 6, fig.align = 'center')
+```
+
+```{r packages}
+library(tidyverse)
+library(corrplot)
+library(kableExtra)
+library(reshape2)
+library(randomForest)
+library(gbm)
+library(caret)
+```
+
+## Introduction
+
+This problem is a fictional situation that can be found on Kaggle (https://www.kaggle.com/competitions/spaceship-titanic/overview). In this scenario the year is 2912 and there is an interstellar passenger liner called Spaceship Titanic that launced a month ago. There are roughly 13,000 passengers on board looking to emigrate to 3 newly habitable planets. Unfortunately the Spaceship Titanic met a spacetime anomaly and nearly half of the passengers were transported to an alternate dimension.The challenge is to use passenger data recovered from the spaceship's damaged computer system to predict which passengers were transported to the alternate dimension.
+
+This is a binary classification problem that we will use random forest and generalized boosted methods to try and predict which passengers were transported and which ones were not. The challenges with this problem is that the data that was recovered is not clean and missing some data. So we first need to clean the data and determine how to handle each feature in the dataset.We will then build and train our random forest and boosted models using cross-validation to tune the hyperparameters. When we have the tuned hyperparameters we will then use a test set to make predictions and see how each model performs.
+
+```{r load_data}
+
+dta <- read.table(file = "space_titanic.csv", sep = ",", header = TRUE)
+
+```
+
+```{r clean_data}
+dta[dta==""] <- NA
+
+dta_clean <- dta %>%
+  drop_na() %>%
+  separate(Cabin, into = c("deck", "room_number", "side"), sep = "/") %>%
+  select(-c(PassengerId, Name))
+
+```
+
+```{r onehotencode}
+dta2 <- dta_clean %>%
+  mutate(HPEarth = ifelse(HomePlanet == "Earth", 1, 0),
+         HPMars = ifelse(HomePlanet == "Mars", 1, 0),
+         CryoSleep = ifelse(CryoSleep == "True", 1, 0),
+         DeckA = ifelse(deck == "A", 1, 0),
+         DeckB = ifelse(deck == "B", 1, 0),
+         DeckC = ifelse(deck == "C", 1, 0),
+         DeckD = ifelse(deck == "D", 1, 0),
+         DeckE = ifelse(deck == "E", 1, 0),
+         DeckF = ifelse(deck == "F", 1, 0),
+         DeckG = ifelse(deck == "G", 1, 0),
+         SideP = ifelse(side == "P", 1, 0),
+         DestTRAP = ifelse(Destination == "TRAPPIST-1e", 1, 0),
+         DestPSO = ifelse(Destination == "PSO J318.5-22", 1, 0),
+         VIP = ifelse(VIP == "True", 1, 0),
+         Transported = as.factor(ifelse(Transported == "True", 1, 0)),
+         RoomNumber = as.numeric(room_number)) %>%
+  select(-c(HomePlanet, deck, room_number, side, Destination, VIP))
+```
+
+## Data Sources
+
+The data for this problem (recovered from the spaceship) can be found on the Kaggle page (https://www.kaggle.com/competitions/spaceship-titanic/data). We will use the "train.csv" as our full dataset. The "test.csv" file is for Kaggle evaluation purposes and has no response variable. The full dataset has 8693 records each containing information about a passenger on the spaceship. There are 14 columns which are as follows:
+
+* PassengerId - Unique ID for each passenger
+* HomePlanet - Planet the passenger departed from
+* CryoSleep - Indicates whether the passenger elected to be put into suspended animation for the voyage
+* Cabin - Cabin number of passenger. Takes the form deck/num/side
+* Destination - Planet the passenger will be debarking to
+* Age - Age of the passenger
+* VIP - Whether the passenger has paid for VIP service
+* RoomService - Amount billed for room service
+* FoodCourt - Amount billed for food court
+* ShoppingMall - Amount billed for shopping mall
+* Spa - Amount billed for spa
+* VRDeck - Amount billed for virtual reality
+* Name - First and last names of passenger
+* Transported - Response variable, indicates where they were transported or not
+
+## Exploratory Analysis
+
+First thing to do was to clean the dataset, as there were some records with missing data. For convenience we dropped any records that had missing records, dropping our record count to 6606. For our analysis and models we will drop the PassengerID and Name columns as they are unique values and should have no bearing on whether they were transported or not.
+
+Next we need to prep our data so that it is ready for our predictive models. Some columns, like HomePlanet, CryoSleep, Destination, and VIP, are categorical variables. We will turn these into binary variables. For example, HomePlanet has 3 categories: Earth, Mars, and Europa. So we will create 2 binary variables, HPEarth and HPMars, that will be '1' if it is their home planet and '0' otherwise. If both are '0' that indicates their home planet as Europa. We will do similar strategies with the other categorical variables. We will also split the Cabin feature into 3 distinct features: Deck, RoomNumber, and Side. Deck and Side are categorical variables so we will turn them into binary variables while RoomNumber will be numeric.
+
+We'll look at some boxplots between the numeric variables and Transported to see if there are any patterns we can find.
+
+```{r}
+num_columns <- c("RoomNumber", "Age", "RoomService", "FoodCourt", "ShoppingMall", "Spa", "VRDeck")
+
+dta_num <- dta2[num_columns]
+
+par(mfrow=c(2,4))
+for (i in 1:length(dta_num)){
+  boxplot(dta_num[,i] ~ dta2$Transported, notch = TRUE, col = rgb(0, 0, 1, alpha = 0.2),
+          xlab = "Transported",
+          ylab = num_columns[i],)
+  stripchart(dta_num[,i] ~ dta2$Transported, vertical = TRUE, method = "jitter", jitter = 0.05, pch = 19, 
+             add = TRUE,  col = rgb(0, 0, 1, alpha = 0.8))
+}
+```
+
+Some patterns we can see are that higher spending in RoomService, Spa, and VRDeck lead to a better chance a passenger was not transported. The other variables do not show any obvious pattern between transported and not transported passengers.
+
+```{r split data}
+n = dim(dta2)[1]
+n1 = round(n/5)
+set.seed(12)
+flag = sort(sample(1:n, n1))
+
+dta.train = dta2[-flag,]
+dta.test = dta2[flag,]
+```
+
+## Models and Methods
+
+The main objective is to use random forest and boosted methods for this classification problem, but we will also use a baseline model for comparison. We will use logistic regression for our baseline model.
+
+We will split the data into train and test sets on a 80/20 split. We will use the train set to train the logistic regression model, and use it for cross-validation for hyperparameter tuning of our random forest and boosted model. 
+
+For random forest there are 2 hyperparameters we will look to tune: number of trees and number of predictors sampled for splitting at each node. We will use Monte Carlo Cross-Validation (MCCV) to determine which values for each parameter to use in our final model. We will run 100 iterations of our MCCV and average the error and pick the model with the lowest error. That model is using 750 trees and 5 predictors sampled. The full table of models and average test error can be found in the appendix.
+
+For our boosted model there are 3 hyperparameters we will look to tune: number of trees, learning rate (shrinkage), and interaction depth. We will use the same MCCV process to pick the best model, which happens to be the model with 750 trees, 0.1 learning rate, and interaction depth of 2. Full table can be found in the appendix.
+
+```{r logistic}
+logit.model <- glm(Transported ~ ., data = dta.train, family = "binomial")
+
+logit.predict <- ifelse(predict(logit.model, dta.train[, !names(dta.train) %in% c("Transported")], type = "response") > .5, 1, 0)
+logit.te <- 1 - sum(dta.train[,"Transported"] == logit.predict) / dim(dta.train)[1]
+```
+
+```{r test}
+set.seed(333)
+logit.predict.test <- ifelse(predict(logit.model, dta.test[, !names(dta.test) %in% c("Transported")], type = "response") > .5, 1, 0)
+logit.test.err <- 1 - (sum(dta.test[,"Transported"] == logit.predict.test) / dim(dta.test)[1])
+
+rf <- randomForest(Transported ~ ., dta.train, ntree = 750, mtry = 5, importance=TRUE)
+rf.predict.test <- predict(rf, dta.test, type="class")
+rf.test.err <- 1 - (sum(dta.test[,"Transported"] == rf.predict.test) / dim(dta.test)[1])
+
+boost <- gbm(as.character(Transported) ~ ., dta.train, distribution = 'bernoulli', n.trees = 750, shrinkage = .1, interaction.depth = 2)
+bst.predict.test <- ifelse(predict(boost, dta.test, n.trees=750, type="response") > 0.5, 1, 0)
+bst.test.err <- 1 - (sum(dta.test[,"Transported"] == bst.predict.test) / dim(dta.test)[1])
+
+```
+
+```{r conf_matrix}
+draw_confusion_matrix <- function(cm, name) {
+
+  layout(matrix(c(1,1,2)))
+  par(mar=c(2,2,2,2))
+  plot(c(100, 345), c(300, 450), type = "n", xlab="", ylab="", xaxt='n', yaxt='n')
+  title(paste0('Confusion Matrix - ', name), cex.main=2)
+
+  # create the matrix 
+  rect(150, 430, 240, 370, col='dark green')
+  text(195, 435, 'Not Transported', cex=1.2)
+  rect(250, 430, 340, 370, col='dark red')
+  text(295, 435, 'Transported', cex=1.2)
+  text(125, 370, 'Predicted', cex=1.3, srt=90, font=2)
+  text(245, 450, 'Actual', cex=1.3, font=2)
+  rect(150, 305, 240, 365, col='dark red')
+  rect(250, 305, 340, 365, col='dark green')
+  text(140, 400, 'Not Transported', cex=1.2, srt=90)
+  text(140, 335, 'Transported', cex=1.2, srt=90)
+
+  # add in the cm results 
+  res <- as.numeric(cm$table)
+  text(195, 400, res[1], cex=1.6, font=2, col='white')
+  text(195, 335, res[2], cex=1.6, font=2, col='white')
+  text(295, 400, res[3], cex=1.6, font=2, col='white')
+  text(295, 335, res[4], cex=1.6, font=2, col='white')
+
+  # add in the specifics 
+  plot(c(100, 0), c(100, 0), type = "n", xlab="", ylab="", main = "DETAILS", xaxt='n', yaxt='n')
+  text(10, 85, names(cm$byClass[1]), cex=1.2, font=2)
+  text(10, 70, round(as.numeric(cm$byClass[1]), 3), cex=1.2)
+  text(30, 85, names(cm$byClass[2]), cex=1.2, font=2)
+  text(30, 70, round(as.numeric(cm$byClass[2]), 3), cex=1.2)
+  text(50, 85, names(cm$byClass[5]), cex=1.2, font=2)
+  text(50, 70, round(as.numeric(cm$byClass[5]), 3), cex=1.2)
+  text(70, 85, names(cm$byClass[6]), cex=1.2, font=2)
+  text(70, 70, round(as.numeric(cm$byClass[6]), 3), cex=1.2)
+  text(90, 85, names(cm$byClass[7]), cex=1.2, font=2)
+  text(90, 70, round(as.numeric(cm$byClass[7]), 3), cex=1.2)
+
+  # add in the accuracy information 
+  text(50, 35, names(cm$overall[1]), cex=1.5, font=2)
+  text(50, 20, round(as.numeric(cm$overall[1]), 3), cex=1.4)
+}  
+
+
+```
+
+## Results
+
+After choosing the hyperparameters for our models, we will use the test set to make predictions and compare the results between the 3 models. Below are the confusion matrices for each model.
+
+```{r logit cm}
+logit.cm <- confusionMatrix(data = as.factor(logit.predict.test), reference = dta.test$Transported)
+
+draw_confusion_matrix(logit.cm, "Logistic Regression")
+```
+
+```{r rf cm}
+rf.cm <- confusionMatrix(data = as.factor(rf.predict.test), reference = dta.test$Transported)
+
+draw_confusion_matrix(rf.cm, "Random Forest")
+```
+
+```{r bst cm}
+bst.cm <- confusionMatrix(data = as.factor(bst.predict.test), reference = dta.test$Transported)
+
+draw_confusion_matrix(bst.cm, "Boosted")
+```
+
+So we found that the random forest and boosted model did not significantly outperform our baseline logistic regression model, with each model having between 79-81% accuracy in predictions on the test set. Each model performed roughly the same on predicting whether a passenger was Transported, with each correctly predicting ~81%. The main difference between the baseline and the other models appears when predicting the passengers Not Transported, with the baseline at 76% and random forest and boosted at 79% and 81% respectively. Overall we conclude that the boosted model performs the best of the 3 models, but the difference between baseline and the other models are small and possibly insignificant. 
+
+We'll look deeper in the random forest and boosted model to see which features appear to be most important. Below are feature importance chart for the two models.
+
+```{r feature importance2}
+rf.var.imp <- data.frame("var" = rownames(importance(rf)),
+                         "rel.inf" = importance(rf, type = 2))
+
+ggplot(rf.var.imp, aes(MeanDecreaseGini, reorder(var, MeanDecreaseGini))) + 
+  geom_bar(stat = "identity", orientation = "y") +
+  xlab("Relative Importance") +
+  ylab("Features") +
+  ggtitle("Relative Importance of Features in Random Forest")
+```
+
+```{r feature importance}
+bst.var.imp <- summary(boost, plotit = FALSE)
+
+ggplot(bst.var.imp, aes(rel.inf, reorder(var, rel.inf))) + 
+  geom_bar(stat = "identity", orientation = "y") +
+  xlab("Relative Importance") +
+  ylab("Features") +
+  ggtitle("Relative Importance of Features in Boosted Model")
+```
+
+For each model the top 3 features by importance are CryoSleep, RoomService, and Spa though the order differs. In our exploratory analysis we noted that RoomSerice and Spa could help differentiate between being transported or not, especially for higher spenders. CryoSleep makes some intuitive sense (as much intuition you can have about being transported to another dimension) as if you are in a "sleep mode" that may have an effect on if you get transported. Our created variables using Deck appear to have the lowest importance as well as the passenger Destination.
+
+
+## Conclusions
+
+In our analysis we fit and trained random forest and boosted models and compared them to a baseline logistic regression model. With some data and feature cleanup, we did not find much of a difference between the 2 models and our baseline. This dataset and problem ended up being more complicated than we originally anticipated, and I think the lack of difference between the 2 models and baseline show that. I would suspect more feature engineering may be needed to get a better predictions of transported passengers. Tuning the hyperparameters of the random forest and boosted models was also very time consuming and so the values chosen to iterate through were fairly small. A more exhaustive search could result in better tuning parameters and better predictions.
+
+## Appendix
+
+#### Random Forest Hyperparameter Tuning
+
+```{r load tables}
+load("rf_bst_cv_results.rda")
+```
+
+For tuning the random forest model we iterated through 3 number of trees values (250, 500, 750) and 3 number of predictors samples (5, 10, 15). Below is the table of the results of the MCCV. Models are named after the parameters used (Ex. using 250 trees and 5 predictors is called 250-5).
+
+```{r rf_mccv}
+rf_cv_results <- rf_cv_results[order(rf_cv_results$Average.Error, decreasing = FALSE),] 
+
+kable(rf_cv_results, col.names = c("Model", "Average CV Error", "Average CV Variance"), row.names = FALSE, booktabs = T) %>%
+  kable_styling(latex_options = c("striped", "HOLD_position"), full_width = F)
+```
+
+#### Boosted Hyperparameter Tuning
+
+For tuning the boosted model we iterated through 3 number of trees values (250, 500, 750), 3 learning rates (.001, .01, .1), and 3 interaction depths (1, 2, 3). Models are named after the parameters used (Ex. using 250 trees, .001 learning rate, and depth of 1 is called 250-001-1).
+
+```{r bst_mccv}
+bst_cv_results <- bst_cv_results[order(bst_cv_results$Average.Error, decreasing = FALSE),] 
+
+kable(bst_cv_results, col.names = c("Model", "Average CV Error", "Average CV Variance"), row.names = FALSE, booktabs = T) %>%
+  kable_styling(latex_options = c("striped", "HOLD_position"), full_width = F)
+```
+
+
+-----------------------------------------------------------------------------------------------------------------
+
+```{r random_forest, eval = FALSE}
+n = dim(dta.train)[1]
+n1 = round(n/5)
+
+B = 100
+VEALL = NULL
+
+for (b in 1:B){
+  partition <- sort(sample(1:n, n1))
+  dta.train2 <- dta.train[-partition,]
+  dta.val <- dta.train[partition,]
+  
+  # 250 trees
+  rf <- randomForest(Transported ~ ., dta.train2, ntree = 250, mtry = 5)
+  te.250.5 <- 1 - (sum(dta.val$Transported == predict(rf, dta.val, type="class")) / dim(dta.val)[1])
+  
+  rf <- randomForest(Transported ~ ., dta.train2, ntree = 250, mtry = 10)
+  te.250.10 <- 1 - (sum(dta.val$Transported == predict(rf, dta.val, type="class")) / dim(dta.val)[1])
+  
+  rf <- randomForest(Transported ~ ., dta.train2, ntree = 250, mtry = 15)
+  te.250.15 <- 1 - (sum(dta.val$Transported == predict(rf, dta.val, type="class")) / dim(dta.val)[1])
+  
+  # 500 trees
+  rf <- randomForest(Transported ~ ., dta.train2, n6tree = 500, mtry = 5)
+  te.500.5 <- 1 - (sum(dta.val$Transported == predict(rf, dta.val, type="class")) / dim(dta.val)[1])
+  
+  rf <- randomForest(Transported ~ ., dta.train2, ntree = 500, mtry = 10)
+  te.500.10 <- 1 - (sum(dta.val$Transported == predict(rf, dta.val, type="class")) / dim(dta.val)[1])
+  
+  rf <- randomForest(Transported ~ ., dta.train2, ntree = 500, mtry = 15)
+  te.500.15 <- 1 - (sum(dta.val$Transported == predict(rf, dta.val, type="class")) / dim(dta.val)[1])
+  
+  # 750 trees
+  rf <- randomForest(Transported ~ ., dta.train2, ntree = 750, mtry = 5)
+  te.750.5 <- 1 - (sum(dta.val$Transported == predict(rf, dta.val, type="class")) / dim(dta.val)[1])
+  
+  rf <- randomForest(Transported ~ ., dta.train2, ntree = 750, mtry = 10)
+  te.750.10 <- 1 - (sum(dta.val$Transported == predict(rf, dta.val, type="class")) / dim(dta.val)[1])
+  
+  rf <- randomForest(Transported ~ ., dta.train2, ntree = 750, mtry = 15)
+  te.750.15 <- 1 - (sum(dta.val$Transported == predict(rf, dta.val, type="class")) / dim(dta.val)[1])
+
+  VEALL <- rbind(VEALL, cbind(te.250.5, te.250.10, te.250.15, te.500.5, te.500.10, te.500.15, te.750.5, te.750.10, te.750.15))
+}
+
+```
+
+```{r rf.cv, eval=FALSE}
+rf_cv_results <- data.frame("Model" = c("250-5", "250-10", "250-15", "500-5", "500-10", "500-15", "750-5", "750-10", "750-15"),
+                         "Average Error" = 0, "Average Variance" = 0)
+
+cv_errors <- apply(VEALL, 2, mean)
+cv_var <- apply(VEALL, 2, var)
+
+for (i in 1:9){
+  rf_cv_results$Average.Error[i] <- cv_errors[i]
+  rf_cv_results$Average.Variance[i] <- cv_var[i]
+}
+
+kable(rf_cv_results, col.names = c("Model", "Average CV Error", "Average CV Variance"), booktabs = T) %>%
+  kable_styling(latex_options = c("striped"), full_width = F)
+```
+
+
+
+
+```{r boost, eval=FALSE}
+n = dim(dta.train)[1]
+n1 = round(n/5)
+
+B = 100
+VEALL = NULL
+
+for (b in 1:B){
+  partition <- sort(sample(1:n, n1))
+  dta.train2 <- dta.train[-partition,]
+  dta.val <- dta.train[partition,]
+  
+  # 250 trees
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 250, shrinkage = .001, interaction.depth = 1)
+  te.250.001.1 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 250, shrinkage = .01, interaction.depth = 1)
+  te.250.01.1 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 250, shrinkage = .1, interaction.depth = 1)
+  te.250.1.1 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 250, shrinkage = .001, interaction.depth = 2)
+  te.250.001.2 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 250, shrinkage = .01, interaction.depth = 2)
+  te.250.01.2 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 250, shrinkage = .1, interaction.depth = 2)
+  te.250.1.2 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  # 500 trees
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 500, shrinkage = .001, interaction.depth = 1)
+  te.500.001.1 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 500, shrinkage = .01, interaction.depth = 1)
+  te.500.01.1 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 500, shrinkage = .1, interaction.depth = 1)
+  te.500.1.1 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 500, shrinkage = .001, interaction.depth = 2)
+  te.500.001.2 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 500, shrinkage = .01, interaction.depth = 2)
+  te.500.01.2 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 500, shrinkage = .1, interaction.depth = 2)
+  te.500.1.2 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  # 750 trees
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 750, shrinkage = .001, interaction.depth = 1)
+  te.750.001.1 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 750, shrinkage = .01, interaction.depth = 1)
+  te.750.01.1 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 750, shrinkage = .1, interaction.depth = 1)
+  te.750.1.1 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 750, shrinkage = .001, interaction.depth = 2)
+  te.750.001.2 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 750, shrinkage = .01, interaction.depth = 2)
+  te.750.01.2 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+  
+  boost <- gbm(as.character(Transported) ~ ., dta.train2, distribution = 'bernoulli', n.trees = 750, shrinkage = .1, interaction.depth = 2)
+  te.750.1.2 <- 1 - (sum(dta.val$Transported == ifelse(predict(boost, dta.val, n.trees=250, type="response") > 0.5, 1, 0)) / dim(dta.val)[1])
+
+  VEALL <- rbind(VEALL, cbind(te.250.001.1, te.250.01.1, te.250.1.1, te.250.001.2, te.250.01.2, te.250.1.2,
+                              te.500.001.1, te.500.01.1, te.500.1.1, te.500.001.2, te.500.01.2, te.500.1.2,
+                              te.750.001.1, te.750.01.1, te.750.1.1, te.750.001.2, te.750.01.2, te.750.1.2))
+}
+```
+
+```{r boost.cv, eval=FALSE}
+bst_cv_results <- data.frame("Model" = c("250-001-1", "250-01-1", "250-1-1", "250-001-2", "250-01-2", "250-1-2",
+                                         "500-001-1", "500-01-1", "500-1-1", "500-001-2", "500-01-2", "500-1-2",
+                                         "750-001-1", "750-01-1", "750-1-1", "750-001-2", "750-01-2", "750-1-2"),
+                         "Average Error" = 0, "Average Variance" = 0)
+
+cv_errors <- apply(VEALL, 2, mean)
+cv_var <- apply(VEALL, 2, var)
+
+for (i in 1:18){
+  bst_cv_results$Average.Error[i] <- cv_errors[i]
+  bst_cv_results$Average.Variance[i] <- cv_var[i]
+}
+
+kable(bst_cv_results, col.names = c("Model", "Average CV Error", "Average CV Variance"), booktabs = T) %>%
+  kable_styling(latex_options = c("striped"), full_width = F)
+
+save(list = c("bst_cv_results", "rf_cv_results"), file = "rf_bst_cv_results.rda")
+```
