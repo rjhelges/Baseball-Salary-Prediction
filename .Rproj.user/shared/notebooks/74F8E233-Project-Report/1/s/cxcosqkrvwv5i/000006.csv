@@ -1,0 +1,5 @@
+"0","cols <- c(""W_C"", ""IP_C"", ""ERA_C"", ""Salary_C"", ""W_P1"", ""IP_P1"", ""ERA_P1"", ""Salary_P1"",""W_P2"", ""IP_P2"", ""ERA_P2"", ""Salary_P2"")"
+"0",""
+"0","corr_example <- pitcher_dta %>% select(all_of(cols))"
+"0",""
+"0","corrplot(cor(corr_example), type = ""upper"")"

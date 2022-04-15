@@ -1,0 +1,6 @@
+"0","cols <- c(""HR_C"", ""AVG_C"", ""WAR_C"", ""Salary_C"", ""HR_P1"", ""AVG_P1"", ""WAR_P1"", ""Salary_P1"",""HR_P2"", ""AVG_P2"", ""WAR_P2"", ""Salary_P2"")"
+"0",""
+"0","corr_example <- batter_dta %>% select(all_of(cols))"
+"0",""
+"0","par(ps=10)"
+"0","corrplot(cor(corr_example, use=""pairwise.complete.obs""), type = ""upper"")"
