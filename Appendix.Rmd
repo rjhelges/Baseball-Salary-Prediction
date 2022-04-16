@@ -1,11 +1,14 @@
 ---
 title: "Appendix"
 output: pdf_document
+urlcolor: blue
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, comment = NA, warning=FALSE, message=FALSE, fig.width = 9, fig.height = 6, fig.align = 'center')
 ```
+
+To see all of the data and code that went into this project, you can go to the [Github page](https://github.com/rjhelges/Baseball-Salary-Prediction) here.
 
 ## Data Set Columns
 

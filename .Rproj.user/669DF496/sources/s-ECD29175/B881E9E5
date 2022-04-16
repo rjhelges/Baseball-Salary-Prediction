@@ -3,7 +3,7 @@
     "path": "~/GT_OMSA/ISYE_7406/Baseball-Salary-Prediction/Appendix.Rmd",
     "project_path": "Appendix.Rmd",
     "type": "r_markdown",
-    "hash": "4101563711",
+    "hash": "1510475515",
     "contents": "",
     "dirty": false,
     "created": 1650055254644.0,
@@ -13,15 +13,15 @@
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "221,22",
-        "scrollLine": "190"
+        "cursorPosition": "3,14",
+        "scrollLine": "0"
     },
     "folds": "",
-    "lastKnownWriteTime": 1650057868,
+    "lastKnownWriteTime": 1650136530,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1650057868045,
+    "last_content_update": 1650136530353,
     "read_only": false,
     "read_only_alternatives": []
 }
